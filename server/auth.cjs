@@ -26,6 +26,8 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 12;
 const MAX_PASSWORD_LENGTH = 256;
 const MAX_FAILED_ATTEMPTS = 5;
+// Caps password spraying: one IP trying many usernames.
+const MAX_FAILED_ATTEMPTS_PER_IP = 30;
 const LOCKOUT_MS = 15 * 60 * 1000;
 const CSRF_HEADER_VALUE = 'soc-cockpit';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -109,9 +111,9 @@ function createAuth({ dbPath, env, isProduction }) {
 
   // ---- Throttling (per IP + username) ----
 
-  function checkThrottle(key) {
+  function checkThrottle(key, max = MAX_FAILED_ATTEMPTS) {
     const entry = failures.get(key);
-    if (entry && entry.count >= MAX_FAILED_ATTEMPTS && entry.resetAt > Date.now()) {
+    if (entry && entry.count >= max && entry.resetAt > Date.now()) {
       throw new AuthError(429, 'Too many failed attempts. Please wait 15 minutes and try again.');
     }
   }
@@ -265,7 +267,9 @@ function createAuth({ dbPath, env, isProduction }) {
       throw new AuthError(401, INVALID_LOGIN_MESSAGE);
     }
     const throttleKey = `login|${req.ip}|${username.toLowerCase()}`;
+    const ipThrottleKey = `login-ip|${req.ip}`;
     checkThrottle(throttleKey);
+    checkThrottle(ipThrottleKey, MAX_FAILED_ATTEMPTS_PER_IP);
 
     let user = findUserByUsername(username);
     let authenticated = false;
@@ -297,6 +301,8 @@ function createAuth({ dbPath, env, isProduction }) {
 
     if (!authenticated) {
       recordFailure(throttleKey);
+      // Not cleared on success, so a valid account cannot be used to reset the per-IP budget.
+      recordFailure(ipThrottleKey);
       throw new AuthError(401, INVALID_LOGIN_MESSAGE);
     }
     failures.delete(throttleKey);

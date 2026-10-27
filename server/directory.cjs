@@ -55,6 +55,8 @@ function createDirectory({ db, env, dataDir }) {
 
   const envConfig = readEnvOverrides(env);
   const encryptionKey = loadEncryptionKey(env, dataDir);
+  const allowInsecure = env.LDAP_ALLOW_INSECURE === 'true';
+  const INSECURE_BLOCKED = 'Unencrypted LDAP would send passwords in clear text. Use LDAPS or StartTLS, or set LDAP_ALLOW_INSECURE=true on the server (lab only).';
 
   function loadSaved() {
     const row = db.prepare('SELECT data, bind_password, updated_at, updated_by FROM directory_settings WHERE id = 1').get();
@@ -106,6 +108,9 @@ function createDirectory({ db, env, dataDir }) {
   function save(input, actor) {
     const saved = loadSaved();
     const next = validateSettings(input);
+    if (next.security === 'none' && !allowInsecure) {
+      throw new DirectoryError(400, INSECURE_BLOCKED);
+    }
     if (next.enabled && (!next.host || !next.baseDN) && !(envConfig.overrides.host && envConfig.overrides.baseDN)) {
       throw new DirectoryError(400, 'Server address and search starting point are required to turn company sign-in on.');
     }
@@ -135,6 +140,9 @@ function createDirectory({ db, env, dataDir }) {
   async function withClient(config, work) {
     if (!config.host) {
       throw new DirectoryError(400, 'Server address is not set.');
+    }
+    if (config.security === 'none' && !allowInsecure) {
+      throw new DirectoryError(400, INSECURE_BLOCKED);
     }
     const tlsOptions = { rejectUnauthorized: true };
     if (config.caCert) {
