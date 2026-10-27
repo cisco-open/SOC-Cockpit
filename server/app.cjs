@@ -329,7 +329,8 @@ app.delete('/api/:kind/:id', (req, res, next) => {
 if (isProduction) {
   const distPath = path.join(__dirname, '..', 'dist');
   app.use(express.static(distPath));
-  app.get('*', (_req, res) => {
+  // Express 5 (path-to-regexp v8) requires a named wildcard; bare '*' throws at startup.
+  app.get('/{*splat}', (_req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
