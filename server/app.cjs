@@ -9,6 +9,7 @@ const dotenv = require('dotenv');
 const helmet = require('helmet');
 const multer = require('multer');
 const { createStore } = require('./db.cjs');
+const { createAuth } = require('./auth.cjs');
 const { buildStandupTemplate, parseStandupWorkbook } = require('./standup-xlsx.cjs');
 
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
@@ -19,7 +20,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 const uploadsPath = path.join(__dirname, '..', 'uploads');
 const processUploadsPath = path.join(uploadsPath, 'process-docs');
 const objectiveUploadsPath = path.join(uploadsPath, 'objective-docs');
-const apiToken = process.env.SOC_API_TOKEN;
+const dbPath = path.join(__dirname, '..', 'data', 'soc-cockpit.sqlite');
 const MAX_DOCUMENT_UPLOAD_BYTES = 20 * 1024 * 1024;
 const ALLOWED_DOCUMENT_EXTENSIONS = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
@@ -42,9 +43,12 @@ const DOCUMENT_SIGNATURE_CHECKS = {
   '.webp': (header) => header.slice(0, 4).toString('latin1') === 'RIFF' && header.slice(8, 12).toString('latin1') === 'WEBP',
 };
 const store = createStore({
-  dbPath: path.join(__dirname, '..', 'data', 'soc-cockpit.sqlite'),
+  dbPath,
   env: process.env,
 });
+const auth = createAuth({ dbPath, env: process.env, isProduction });
+// Viewers may ask the assistant questions even though it is a POST.
+const VIEWER_ALLOWED_WRITES = new Set(['/assistant/chat']);
 
 fs.mkdirSync(processUploadsPath, { recursive: true });
 fs.mkdirSync(objectiveUploadsPath, { recursive: true });
@@ -126,21 +130,23 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 app.use(express.json());
-function requireApiToken(req, _res, next) {
-  if (!apiToken) {
+app.use('/api', auth.requireCsrfHeader);
+
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, service: 'soc-cockpit-api' });
+});
+
+app.use('/api/auth', auth.router);
+app.use('/api', auth.requireAuth);
+app.use('/api/admin', auth.requireRole('Admin'), auth.adminRouter);
+app.use('/api', (req, res, next) => {
+  if (['GET', 'HEAD'].includes(req.method) || VIEWER_ALLOWED_WRITES.has(req.path)) {
     next();
     return;
   }
-  const authorization = req.get('authorization');
-  const xApiKey = req.get('x-api-key');
-  if (authorization === `Bearer ${apiToken}` || xApiKey === apiToken) {
-    next();
-    return;
-  }
-  next(new HttpError(401, 'Unauthorized'));
-}
-app.use('/api', requireApiToken);
-app.use('/uploads', requireApiToken, express.static(uploadsPath, {
+  auth.requireRole('Operator', 'Admin')(req, res, next);
+});
+app.use('/uploads', auth.requireAuth, express.static(uploadsPath, {
   index: false,
   dotfiles: 'deny',
   setHeaders: (res, filePath) => {
@@ -150,15 +156,11 @@ app.use('/uploads', requireApiToken, express.static(uploadsPath, {
   },
 }));
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'soc-cockpit-api' });
-});
-
 app.get('/api/snapshot', (_req, res) => {
   res.json(store.getSnapshot());
 });
 
-app.post('/api/settings/clocks', (req, res) => {
+app.post('/api/settings/clocks', auth.requireRole('Admin'), (req, res) => {
   res.json(store.updateClockZones(req.body.zones));
 });
 
