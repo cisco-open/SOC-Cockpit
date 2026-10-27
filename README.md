@@ -177,8 +177,8 @@ On Windows PowerShell, use `npm.cmd` if script execution policy blocks `npm`.
 
 - `src/`: web UI, API client, and module views.
 - `server/app.cjs`: Express API server and production static hosting.
-- `server/db.cjs`: SQLite schema, seed data, CRUD operations, and advisor brief
-  generation.
+- `server/db.cjs`: SQLite schema, default settings, CRUD operations, and advisor
+  brief generation.
 
 ## Commands
 
@@ -223,8 +223,9 @@ OpenAI-compatible gateways, and self-hosted servers such as Ollama or vLLM.
   first sign-in but stay blocked until an Admin approves them in **Users**.
 - Roles: **Viewer** (read-only), **Operator** (read and edit), **Admin**
   (everything plus user management).
-- Seed data is loaded automatically the first time the SQLite database is
-  created.
+- A new database starts empty apart from default settings (clock zones, shift
+  labels); no sample records are loaded. The screenshots above use a fictional
+  dataset.
 - The API is the source of truth for all editable modules.
 - Production mode serves the built frontend from the Express server.
 - `data/`, `uploads/`, and `artifacts/` hold local runtime data and are
