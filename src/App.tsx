@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import {
   ArrowDownRight,
   ArrowUpRight,
+  Building2,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -15,11 +16,16 @@ import {
   Clock3,
   Database,
   Download,
+  Gauge,
   Globe,
+  LogOut,
   Maximize2,
   MessageCircle,
   Minus,
+  LayoutGrid,
+  List,
   Minimize2,
+  Palette,
   Paperclip,
   Pencil,
   Pin,
@@ -30,6 +36,7 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  Users,
 } from 'lucide-react';
 import ciscoLogo from './assets/Cisco_Logo_no_TM_White-RGB.svg';
 import { api } from './api';
@@ -61,9 +68,22 @@ import {
   toLocalDateKey,
   trendOptions,
 } from './data';
-import type { AppSnapshot, FeedItem, Health, IssueRow, IssueStatus, MatrixQuadrant, MatrixStatus, ProjectRow, RecordKind, RosterAssignment, RosterLabel, Trend } from './types';
+import { UserManagementTab } from './UserAdmin';
+import { DirectorySettingsPanel } from './DirectorySettings';
+import type { AppSnapshot, AuthUser, FeedItem, Health, IssueRow, IssueStatus, MatrixQuadrant, MatrixStatus, ProjectRow, RecordKind, RosterAssignment, RosterLabel, Trend } from './types';
 
 type ActiveView = 'overview' | 'workforce' | 'standups' | 'service' | 'issues' | 'objectives' | 'projects' | 'processes' | 'contacts' | 'notes' | 'advisor' | 'settings';
+
+type SettingsTab = 'appearance' | 'clocks' | 'readiness' | 'system' | 'users' | 'directory';
+
+const settingsTabs: Array<{ key: SettingsTab; label: string; icon: typeof Palette; adminOnly?: boolean }> = [
+  { key: 'appearance', label: 'Appearance', icon: Palette },
+  { key: 'clocks', label: 'World clocks', icon: Clock3, adminOnly: true },
+  { key: 'readiness', label: 'Readiness levers', icon: Gauge, adminOnly: true },
+  { key: 'system', label: 'System status', icon: Database, adminOnly: true },
+  { key: 'users', label: 'User Management', icon: Users, adminOnly: true },
+  { key: 'directory', label: 'Company Directory (LDAP / AD)', icon: Building2, adminOnly: true },
+];
 
 type WorkforcePlannerRow = {
   id: number;
@@ -541,8 +561,10 @@ function computeSummary(snapshot: AppSnapshot, planningDate: string, levers: Rea
   return { gaps, confirmed, planned, leave, doCount, atRisk, openIssues, score, rosterForDate };
 }
 
-export function App() {
+export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const now = useClock();
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('appearance');
+  const isAdmin = user.role === 'Admin';
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState<ActiveView>('overview');
@@ -2230,16 +2252,20 @@ export function App() {
   }
 
   function renderSettings() {
-    return (
-      <div className="grid">
-        <Panel title="Update status" span={5} meta={<span className="muted">server configuration</span>}>
+    const tabs = settingsTabs.filter((tab) => isAdmin || !tab.adminOnly);
+    const currentTab = tabs.some((tab) => tab.key === settingsTab) ? settingsTab : 'appearance';
+    const panes: Record<SettingsTab, () => ReactNode> = {
+      system: () => (
+        <Panel title="System status" meta={<span className="muted">server configuration</span>}>
           <div className="status-card-grid">
             <div className="status-card"><Database size={16} /><div><strong>Data source</strong><span>Shared SQLite server database</span></div></div>
             <div className="status-card"><Globe size={16} /><div><strong>LLM route</strong><span>{app.settings.llmConfigured ? 'Cisco Bridge configured' : 'Missing credentials'}</span></div></div>
             <div className="status-card"><ShieldCheck size={16} /><div><strong>Mode</strong><span>Read-only chief of staff advisor</span></div></div>
           </div>
         </Panel>
-        <Panel title="World clocks" span={5}>
+      ),
+      clocks: () => (
+        <Panel title="World clocks" meta={<span className="muted">shown in the top bar</span>}>
           <div className="clock-config">
             <Field label="Clock A">
               <select value={clockZones[0]} onChange={(event) => setClockZones([event.target.value, clockZones[1]])}>{timeZoneOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
@@ -2250,7 +2276,9 @@ export function App() {
             <button className="primary-btn" type="button" onClick={() => void saveClockZones()} disabled={busy === 'clock-zones'}><Clock3 size={14} /> Save clocks</button>
           </div>
         </Panel>
-        <Panel title="Appearance" span={5} meta={<span className="muted">display preferences</span>}>
+      ),
+      appearance: () => (
+        <Panel title="Appearance" meta={<span className="muted">display preferences</span>}>
           <div className="appearance-config">
             <div className="appearance-row">
               <div className="appearance-label">
@@ -2275,7 +2303,9 @@ export function App() {
             </div>
           </div>
         </Panel>
-        <Panel title="SOC Readiness levers" span={5} meta={<span className="muted">tune the score model</span>}>
+      ),
+      readiness: () => (
+        <Panel title="SOC Readiness levers" meta={<span className="muted">tune the score model</span>}>
           <div className="lever-config">
             <div className="lever-preview">
               <span className="muted">Current readiness score with these settings</span>
@@ -2294,6 +2324,26 @@ export function App() {
             <button className="ghost-btn" type="button" onClick={() => setReadinessLevers(defaultReadinessLevers)}>Reset to defaults</button>
           </div>
         </Panel>
+      ),
+      users: () => <UserManagementTab currentUserId={user.id} />,
+      directory: () => <DirectorySettingsPanel />,
+    };
+
+    return (
+      <div className="admin-console">
+        <div className="ac-tabs" role="tablist" aria-label="Settings sections">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button key={tab.key} type="button" role="tab" id={`settings-tab-${tab.key}`} aria-selected={currentTab === tab.key} aria-controls="settings-panel" className={currentTab === tab.key ? 'ac-tab active' : 'ac-tab'} onClick={() => setSettingsTab(tab.key)}>
+                <Icon size={16} /> {tab.label}
+              </button>
+            );
+          })}
+        </div>
+        <div id="settings-panel" role="tabpanel" aria-labelledby={`settings-tab-${currentTab}`} className="settings-pane">
+          {panes[currentTab]()}
+        </div>
       </div>
     );
   }
@@ -2329,6 +2379,11 @@ export function App() {
                 <span className="clock-date">{item.label} · {formatDate(now, item.zone)}</span>
               </div>
             ))}
+          </div>
+          <div className="user-chip" title={`${user.username} (${user.role})`}>
+            <span className="user-chip-name">{user.displayName || user.username}</span>
+            <span className="user-chip-role">{user.role}</span>
+            <button type="button" className="user-chip-btn" onClick={onSignOut} title="Sign out" aria-label="Sign out"><LogOut size={14} /></button>
           </div>
         </div>
       </header>
