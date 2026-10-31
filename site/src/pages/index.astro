@@ -1,0 +1,1187 @@
+---
+// SPDX-FileCopyrightText: 2026 Cisco Systems, Inc.
+// SPDX-License-Identifier: Apache-2.0
+import { Image } from 'astro:assets';
+import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
+import QuickStart from '../components/QuickStart.astro';
+import { REPO, VERSION, screens, url } from '../lib/site';
+
+const hero = screens[0];
+
+const shifts = [
+  { from: 'Stand-ups held verbally, lost by the afternoon', to: 'Every task recorded with a lead, duration and status — and carried over, not forgotten' },
+  { from: 'Coverage gaps discovered on the day', to: 'Future-dated rosters surface gaps while there is still time to fix them' },
+  { from: 'Objectives and issues drift without an owner', to: 'Owner, due date, progress and health on every item, visible to the whole team' },
+  { from: 'Monthly reporting as archaeology', to: 'KPIs tracked continuously, so the report is an export rather than a rebuild' },
+];
+
+const modules = [
+  { icon: 'gauge', title: 'Command dashboard', text: 'Readiness, SLA/KPI health, live risks, decisions and 24/7 shift coverage on one page.', span: 'wide' },
+  { icon: 'calendar', title: 'Workforce rotation', text: 'Plan shifts into the future across teams and spot thin coverage early.' },
+  { icon: 'matrix', title: 'Eisenhower stand-ups', text: 'Do, Delegate, Delay, Discard — with carry-over for unfinished work.' },
+  { icon: 'activity', title: 'KPI & SLA register', text: 'Targets, trend and health, tracked every day instead of at month end.' },
+  { icon: 'alert', title: 'Issue register', text: 'Status, owner and due date, colour-coded so the risks stand out.' },
+  { icon: 'target', title: 'Objectives & projects', text: 'Link daily tasks to the commitments they actually move forward.', span: 'tall' },
+  { icon: 'workflow', title: 'Process inventory', text: 'Owner, cadence and maturity for every SOC process.' },
+  { icon: 'file', title: 'Executive update', text: 'Bottom line, wins, concerns and decisions — assembled from live data.', span: 'wide' },
+  { icon: 'users', title: 'Directory', text: 'Analysts, leads, vendors and stakeholders grouped by channel.' },
+] as const;
+
+const controls = [
+  { icon: 'lock', title: 'Sign-in & roles', text: 'Local or Active Directory accounts; Viewer, Operator and Admin roles.' },
+  { icon: 'shield', title: 'Hardened sessions', text: 'HttpOnly, SameSite=Strict cookies, CSRF header and sign-in throttling.' },
+  { icon: 'database', title: 'Parameterised SQL', text: 'Every query uses prepared statements.' },
+  { icon: 'file', title: 'Upload validation', text: 'Allowlist, size limits and magic-number signature checks.' },
+  { icon: 'layers', title: 'Pinned dependencies', text: 'Small, pinned set; npm audit and dependency review in CI.' },
+  { icon: 'terminal', title: 'Secret scanning', text: 'Automated secret scanning on every push and pull request.' },
+] as const;
+---
+
+<Base>
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="wrap hero-copy">
+      <a class="chip hero-chip" href={`${REPO}/releases`} rel="noopener">
+        <span class="dot"></span> Open source · Apache-2.0 · v{VERSION}
+        <Icon name="arrow" size={14} />
+      </a>
+      <h1>
+        The command layer<br />
+        <span class="grad-text">above your SOC tooling.</span>
+      </h1>
+      <p class="lede">
+        SOC Cockpit gives SOC managers one shared, durable home for rosters, stand-ups, objectives, issues and KPIs — so
+        the operational record never lives on one person's laptop again.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href={url('get-started/')}>Get started <Icon name="arrow" size={18} /></a>
+        <a class="btn btn-ghost" href={REPO} rel="noopener"><Icon name="github" size={18} /> View on GitHub</a>
+      </div>
+    </div>
+
+    <div class="wrap stage">
+      <div class="stage-tilt">
+        <div class="frame hud">
+          <div class="frame-bar"><i></i><i></i><i></i><span>soc-cockpit / command-dashboard</span></div>
+          <Image src={hero.image} alt="SOC Cockpit command dashboard" widths={[800, 1400, 2000]} sizes="(max-width: 1200px) 100vw, 1200px" loading="eager" />
+          <div class="scan" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <div class="float f1" aria-hidden="true">
+        <span class="k">Shift coverage · next 14 days</span>
+        <span class="v">96<small>%</small></span>
+        <span class="bar"><i style="width:96%"></i></span>
+      </div>
+      <div class="float f2" aria-hidden="true">
+        <span class="keo"><Icon name="sparkles" size={14} /> Keo</span>
+        <span class="q">Which shifts are short next week?</span>
+        <span class="a">Two nights on Tier 1 — Tue and Thu.</span>
+      </div>
+      <div class="float f3" aria-hidden="true">
+        <span class="k">SLA register</span>
+        <span class="row"><b class="ok"></b>11 on target <b class="warn"></b>1 at risk</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LAYERS ============ -->
+  <section class="section">
+    <div class="wrap split">
+      <div class="reveal">
+        <span class="eyebrow">Why it exists</span>
+        <h2>Built for the layer <span class="grad-text">nobody tooled.</span></h2>
+        <p class="lede">
+          Most SOCs have mature tooling for detection and response. Far fewer have anything for the management layer that
+          sits above it: who covers the night shift next Tuesday, what the team committed to this morning, and where this
+          month's KPI evidence will come from.
+        </p>
+        <p class="muted">
+          Cockpit does not detect, respond or store telemetry. It complements your SIEM, EDR and SOAR by giving the
+          management layer a shared, API-backed record.
+        </p>
+      </div>
+
+      <div class="layers reveal" aria-label="SOC Cockpit sits above detection, response and ticketing tools">
+        <div class="plane top">
+          <span class="tag">Management layer</span>
+          <strong>SOC Cockpit</strong>
+          <span class="mods">Roster · Stand-ups · Objectives · Issues · KPIs</span>
+        </div>
+        <div class="plane mid">
+          <span class="tag">Detection &amp; response</span>
+          <strong>SIEM · EDR · SOAR</strong>
+        </div>
+        <div class="plane low">
+          <span class="tag">Workflow &amp; comms</span>
+          <strong>Ticketing · Chat · Email</strong>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SHIFTS ============ -->
+  <section class="section shifts-section">
+    <div class="wrap">
+      <div class="section-head center reveal">
+        <span class="eyebrow">What changes</span>
+        <h2>From fragmented to <span class="grad-text">authoritative.</span></h2>
+        <p class="lede">Record it once. Keep its history. Make it visible to the whole team.</p>
+      </div>
+      <ol class="shifts">
+        {
+          shifts.map((s, i) => (
+            <li class="reveal">
+              <span class="idx">0{i + 1}</span>
+              <p class="from">{s.from}</p>
+              <span class="beam" aria-hidden="true" />
+              <p class="to">{s.to}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ MODULES ============ -->
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="eyebrow">Modules</span>
+        <h2>Everything a SOC manager tracks. <span class="grad-text">One console.</span></h2>
+        <p class="lede">A dense, ERP-style workspace designed around shared operations — not a single-user desktop shell.</p>
+      </div>
+      <div class="bento">
+        {
+          modules.map((m) => (
+            <article class={`card reveal ${'span' in m ? m.span : ''}`}>
+              <div class="icon-tile">
+                <Icon name={m.icon} />
+              </div>
+              <h3>{m.title}</h3>
+              <p>{m.text}</p>
+            </article>
+          ))
+        }
+      </div>
+      <p class="more reveal">
+        <a href={url('tour/')}>Take the full product tour <Icon name="arrow" size={16} /></a>
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ KEO ============ -->
+  <section class="section keo-section">
+    <div class="wrap split rev">
+      <div class="chat reveal" aria-label="Example Keo conversation">
+        <div class="chat-head">
+          <span class="keo-badge"><Icon name="sparkles" size={16} /></span>
+          <div>
+            <strong>Keo</strong>
+            <span>Knowledge Efficiency Operator</span>
+          </div>
+          <span class="chip"><span class="dot"></span> Grounded</span>
+        </div>
+        <div class="msg me">How many stand-up tasks are still open from last week?</div>
+        <div class="msg bot">
+          <strong>7 open tasks</strong> carried over from last week — 4 under <em>Do</em>, 2 under <em>Delegate</em>, 1 under
+          <em>Delay</em>.
+          <span class="src"><Icon name="database" size={12} /> Counted directly from the database</span>
+        </div>
+        <div class="msg me">Which objectives received no effort this month?</div>
+        <div class="msg bot">
+          Two objectives have no linked tasks since the 1st: <em>Phishing playbook refresh</em> and <em>Tier 2 cross-training</em>.
+          <span class="src"><Icon name="target" size={12} /> Objectives · Stand-ups</span>
+        </div>
+      </div>
+
+      <div class="reveal">
+        <span class="eyebrow">AI you can trust</span>
+        <h2>Answers from <span class="grad-text">your record</span>, not the internet.</h2>
+        <p class="lede">
+          Keo, the in-app assistant, answers strictly from the live cockpit data — roster coverage, open issues,
+          objectives, KPIs, stand-up tasks and notes.
+        </p>
+        <ul class="ticks">
+          <li><Icon name="check" size={18} /> Counting questions are resolved by the database — arithmetic, not inference.</li>
+          <li><Icon name="check" size={18} /> Daily and monthly advisor briefs written from the day's data.</li>
+          <li><Icon name="check" size={18} /> Any OpenAI-compatible endpoint: OpenAI, gateways, or self-hosted Ollama and vLLM.</li>
+          <li><Icon name="check" size={18} /> No provider configured? A local brief is generated and the app keeps working.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ARCHITECTURE ============ -->
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head center reveal">
+        <span class="eyebrow">Architecture</span>
+        <h2>Small surface. <span class="grad-text">Easy to own.</span></h2>
+        <p class="lede">A two-tier app with an embedded database — no external services required to run it.</p>
+      </div>
+      <div class="arch reveal">
+        <div class="node">
+          <Icon name="layout" size={26} />
+          <strong>Web UI</strong>
+          <span>React · TypeScript · Vite</span>
+        </div>
+        <div class="link" aria-hidden="true"><i></i></div>
+        <div class="node core">
+          <Icon name="server" size={26} />
+          <strong>API</strong>
+          <span>Express on Node.js 22+</span>
+        </div>
+        <div class="link" aria-hidden="true"><i></i></div>
+        <div class="node">
+          <Icon name="database" size={26} />
+          <strong>Store</strong>
+          <span>Embedded SQLite</span>
+        </div>
+        <div class="opts">
+          <div class="node opt">
+            <Icon name="users" size={22} />
+            <strong>Directory <em>optional</em></strong>
+            <span>Active Directory over LDAPS</span>
+          </div>
+          <div class="node opt">
+            <Icon name="cpu" size={22} />
+            <strong>LLM <em>optional</em></strong>
+            <span>OpenAI-compatible endpoint</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SECURITY ============ -->
+  <section class="section sec-section">
+    <div class="wrap">
+      <div class="sec-panel reveal">
+        <div class="sec-copy">
+          <span class="eyebrow">Security posture</span>
+          <h2>Deploy it inside. <span class="grad-text">Not online.</span></h2>
+          <p class="lede">
+            Cockpit is designed to run in a restricted environment reachable only by approved SOC staff. Sign-in with local
+            or Active Directory accounts and role-based access are built in; TLS termination and central logging are
+            delegated to the infrastructure you already trust.
+          </p>
+          <a class="btn btn-ghost" href={url('faq/')}>Read the security &amp; deployment FAQ <Icon name="arrow" size={16} /></a>
+        </div>
+        <div class="sec-grid">
+          {
+            controls.map((c) => (
+              <div class="sec-item">
+                <Icon name={c.icon} size={18} />
+                <div>
+                  <strong>{c.title}</strong>
+                  <span>{c.text}</span>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ QUICK START ============ -->
+  <section class="section">
+    <div class="wrap split qs">
+      <div class="reveal">
+        <span class="eyebrow">Quick start</span>
+        <h2>Running in <span class="grad-text">under a minute.</span></h2>
+        <p class="lede">Node.js 22.5 or later and npm. That's the whole list.</p>
+        <a class="btn btn-primary" href={url('get-started/')}>Full setup guide <Icon name="arrow" size={18} /></a>
+      </div>
+      <div class="reveal">
+        <QuickStart />
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA ============ -->
+  <section class="wrap cta reveal">
+    <div class="cta-inner">
+      <h2>Give your SOC's management layer a home.</h2>
+      <p>Free, open source and built in the open. Star it, try it, shape it.</p>
+      <div class="hero-cta">
+        <a class="btn btn-light" href={REPO} rel="noopener"><Icon name="github" size={18} /> Star on GitHub</a>
+        <a class="btn btn-outline" href={url('community/')}>Contribute <Icon name="arrow" size={18} /></a>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  /* ---------- Hero ---------- */
+  .hero {
+    position: relative;
+    padding-top: clamp(3.5rem, 8vw, 6rem);
+    overflow: hidden;
+  }
+
+  .aurora {
+    position: absolute;
+    inset: -20% -10% auto;
+    height: 900px;
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  .aurora i {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.55;
+    animation: drift 18s ease-in-out infinite alternate;
+  }
+
+  .aurora i:nth-child(1) {
+    width: 560px;
+    height: 560px;
+    left: 8%;
+    top: 4%;
+    background: radial-gradient(circle, rgba(0, 188, 235, 0.55), transparent 70%);
+  }
+
+  .aurora i:nth-child(2) {
+    width: 620px;
+    height: 620px;
+    right: 4%;
+    top: 0;
+    background: radial-gradient(circle, rgba(10, 96, 216, 0.35), transparent 70%);
+    animation-duration: 22s;
+  }
+
+  .aurora i:nth-child(3) {
+    width: 420px;
+    height: 420px;
+    left: 40%;
+    top: 30%;
+    background: radial-gradient(circle, rgba(47, 210, 160, 0.28), transparent 70%);
+    animation-duration: 26s;
+  }
+
+  @keyframes drift {
+    to {
+      transform: translate3d(40px, 30px, 0) scale(1.08);
+    }
+  }
+
+  .hero-copy {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .hero-chip {
+    margin-bottom: 1.8rem;
+    color: var(--ink-2);
+  }
+
+  .hero-chip:hover {
+    border-color: var(--sky);
+    color: var(--ink);
+  }
+
+  .hero h1 {
+    max-width: 16ch;
+  }
+
+  .hero .lede {
+    margin-inline: auto;
+  }
+
+  .hero-cta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.8rem;
+    margin-top: 1.2rem;
+  }
+
+  .stage {
+    position: relative;
+    margin-top: clamp(3rem, 6vw, 4.5rem);
+    perspective: 2200px;
+  }
+
+  .stage-tilt {
+    transform: rotateX(14deg) scale(0.96);
+    transform-origin: 50% 0;
+    animation: settle 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s both;
+  }
+
+  @keyframes settle {
+    from {
+      transform: rotateX(28deg) scale(0.9) translateY(40px);
+      opacity: 0;
+    }
+  }
+
+  .scan {
+    position: absolute;
+    inset: 44px 10px 10px;
+    border-radius: 8px;
+    background: linear-gradient(180deg, transparent 0%, rgba(0, 188, 235, 0.16) 50%, transparent 100%);
+    background-size: 100% 220px;
+    background-repeat: no-repeat;
+    animation: scan 5.5s linear infinite;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+  }
+
+  @keyframes scan {
+    from {
+      background-position: 0 -220px;
+    }
+    to {
+      background-position: 0 calc(100% + 220px);
+    }
+  }
+
+  .float {
+    position: absolute;
+    display: grid;
+    gap: 0.3rem;
+    padding: 0.85rem 1rem;
+    min-width: 210px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.86);
+    border: 1px solid rgba(4, 159, 217, 0.22);
+    box-shadow: 0 20px 50px -20px rgba(13, 39, 77, 0.45);
+    backdrop-filter: blur(14px);
+    font-size: 0.82rem;
+    animation: bob 6s ease-in-out infinite;
+  }
+
+  .float .k {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .float .v {
+    font-size: 1.7rem;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
+  .float .v small {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+
+  .float .bar {
+    height: 6px;
+    border-radius: 6px;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+
+  .float .bar i {
+    display: block;
+    height: 100%;
+    background: var(--grad);
+    border-radius: inherit;
+  }
+
+  .f1 {
+    left: -1%;
+    top: 22%;
+  }
+
+  .f2 {
+    right: -1%;
+    top: 8%;
+    max-width: 250px;
+    animation-delay: -2s;
+  }
+
+  .f2 .keo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 700;
+    color: var(--royal);
+  }
+
+  .f2 .q {
+    color: var(--muted);
+  }
+
+  .f2 .a {
+    font-weight: 600;
+  }
+
+  .f3 {
+    right: 7%;
+    bottom: 12%;
+    animation-delay: -4s;
+  }
+
+  .f3 .row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+  }
+
+  .f3 b {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+  }
+
+  .f3 b.ok {
+    background: var(--mint);
+  }
+
+  .f3 b.warn {
+    background: var(--amber);
+    margin-left: 0.4rem;
+  }
+
+  @keyframes bob {
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+
+  @media (max-width: 860px) {
+    .float {
+      display: none;
+    }
+  }
+
+  /* ---------- Split layouts ---------- */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(2.5rem, 6vw, 5rem);
+    align-items: center;
+  }
+
+  .muted {
+    color: var(--muted);
+  }
+
+  @media (max-width: 900px) {
+    .split {
+      grid-template-columns: 1fr;
+    }
+
+    .split.rev > :first-child {
+      order: 2;
+    }
+  }
+
+  /* ---------- Layers ---------- */
+  .layers {
+    position: relative;
+    height: 380px;
+    perspective: 1400px;
+  }
+
+  .plane {
+    position: absolute;
+    left: 8%;
+    right: 8%;
+    height: 150px;
+    display: grid;
+    align-content: center;
+    gap: 0.25rem;
+    padding: 0 2rem;
+    border-radius: 20px;
+    transform: rotateX(58deg) rotateZ(-34deg);
+    transform-style: preserve-3d;
+    border: 1px solid var(--line-strong);
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 30px 50px -30px rgba(13, 39, 77, 0.4);
+    transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  .plane strong {
+    font-size: 1.2rem;
+    letter-spacing: -0.02em;
+  }
+
+  .plane .tag {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .plane .mods {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .plane.low {
+    top: 200px;
+  }
+
+  .plane.mid {
+    top: 110px;
+    background: rgba(238, 244, 250, 0.9);
+  }
+
+  .plane.top {
+    top: 10px;
+    background: var(--grad);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 40px 70px -25px rgba(4, 159, 217, 0.65);
+  }
+
+  .plane.top strong {
+    color: #fff;
+    font-size: 1.45rem;
+  }
+
+  .plane.top .tag {
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .layers:hover .plane.top {
+    transform: rotateX(58deg) rotateZ(-34deg) translateZ(40px);
+  }
+
+  .layers:hover .plane.low {
+    transform: rotateX(58deg) rotateZ(-34deg) translateZ(-30px);
+  }
+
+  /* ---------- Shifts ---------- */
+  .shifts {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 1rem;
+  }
+
+  .shifts li {
+    display: grid;
+    grid-template-columns: 56px 1fr 120px 1.3fr;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 1.35rem 1.6rem;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+
+  .shifts p {
+    margin: 0;
+  }
+
+  .shifts .idx {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--blue);
+  }
+
+  .shifts .from {
+    color: var(--muted);
+    text-decoration: line-through;
+    text-decoration-color: rgba(226, 71, 91, 0.5);
+    text-decoration-thickness: 1.5px;
+  }
+
+  .shifts .to {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .beam {
+    position: relative;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(0, 188, 235, 0.1), var(--sky), var(--royal));
+    border-radius: 2px;
+  }
+
+  .beam::after {
+    content: '';
+    position: absolute;
+    right: -2px;
+    top: -4px;
+    width: 10px;
+    height: 10px;
+    border-top: 2px solid var(--royal);
+    border-right: 2px solid var(--royal);
+    transform: rotate(45deg);
+  }
+
+  .beam::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--sky);
+    box-shadow: 0 0 12px var(--sky);
+    animation: travel 2.6s ease-in-out infinite;
+  }
+
+  @keyframes travel {
+    from {
+      left: 0;
+      opacity: 0;
+    }
+    20% {
+      opacity: 1;
+    }
+    to {
+      left: calc(100% - 12px);
+      opacity: 0;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .shifts li {
+      grid-template-columns: 1fr;
+      gap: 0.6rem;
+    }
+
+    .beam {
+      width: 80px;
+    }
+  }
+
+  /* ---------- Bento ---------- */
+  .bento {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-flow: dense;
+    gap: 1rem;
+  }
+
+  .bento .wide {
+    grid-column: span 2;
+    background: linear-gradient(135deg, #fff 40%, rgba(0, 188, 235, 0.08));
+  }
+
+  .bento .tall {
+    grid-row: span 2;
+    background: linear-gradient(180deg, #fff 40%, rgba(10, 96, 216, 0.07));
+  }
+
+  @media (max-width: 1000px) {
+    .bento {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 560px) {
+    .bento {
+      grid-template-columns: 1fr;
+    }
+
+    .bento .wide {
+      grid-column: auto;
+    }
+
+    .bento .tall {
+      grid-row: auto;
+    }
+  }
+
+  .more {
+    margin-top: 2rem;
+    text-align: center;
+  }
+
+  .more a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+  }
+
+  /* ---------- Keo ---------- */
+  .keo-section {
+    background: linear-gradient(180deg, transparent, rgba(0, 188, 235, 0.06) 40%, transparent);
+  }
+
+  .chat {
+    display: grid;
+    gap: 0.9rem;
+    padding: 1.5rem;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid var(--line);
+    box-shadow: var(--glow);
+  }
+
+  .chat-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .chat-head div {
+    display: grid;
+    line-height: 1.25;
+    flex: 1;
+  }
+
+  .chat-head div span {
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  .keo-badge {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    color: #fff;
+    background: var(--grad);
+    box-shadow: 0 8px 20px -8px rgba(4, 159, 217, 0.8);
+  }
+
+  .msg {
+    max-width: 88%;
+    padding: 0.8rem 1rem;
+    border-radius: 16px;
+    font-size: 0.93rem;
+  }
+
+  .msg.me {
+    justify-self: end;
+    background: var(--midnight);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+
+  .msg.bot {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-bottom-left-radius: 4px;
+    color: var(--ink-2);
+  }
+
+  .msg.bot strong {
+    color: var(--ink);
+  }
+
+  .src {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.55rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--blue);
+  }
+
+  .ticks {
+    list-style: none;
+    padding: 0;
+    margin: 1.5rem 0 0;
+    display: grid;
+    gap: 0.85rem;
+  }
+
+  .ticks li {
+    display: flex;
+    gap: 0.7rem;
+    color: var(--ink-2);
+  }
+
+  .ticks svg {
+    flex: none;
+    margin-top: 3px;
+    color: #fff;
+    background: var(--grad);
+    border-radius: 50%;
+    padding: 3px;
+  }
+
+  /* ---------- Architecture ---------- */
+  .arch {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 90px 1fr 90px 1fr;
+    align-items: center;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding-bottom: 11rem;
+  }
+
+  .node {
+    display: grid;
+    justify-items: center;
+    gap: 0.35rem;
+    padding: 1.6rem 1rem;
+    text-align: center;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    color: var(--royal);
+  }
+
+  .node strong {
+    color: var(--ink);
+    font-size: 1.05rem;
+  }
+
+  .node span {
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .node.core {
+    box-shadow: var(--glow);
+    border-color: rgba(0, 188, 235, 0.35);
+  }
+
+  .opts {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 1.25rem;
+  }
+
+  /* Dashed drop from the API node into the optional integrations. */
+  .opts::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -2.6rem;
+    height: 2.6rem;
+    border-left: 2px dashed rgba(4, 159, 217, 0.4);
+  }
+
+  .node.opt {
+    width: 250px;
+    border-style: dashed;
+    border-color: var(--line-strong);
+    background: rgba(255, 255, 255, 0.7);
+  }
+
+  .node.opt em {
+    font-style: normal;
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    color: var(--blue);
+    margin-left: 0.3rem;
+    vertical-align: middle;
+  }
+
+  .link {
+    position: relative;
+    height: 2px;
+    background: repeating-linear-gradient(90deg, rgba(4, 159, 217, 0.45) 0 6px, transparent 6px 12px);
+  }
+
+  .link i {
+    position: absolute;
+    top: -4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--sky);
+    box-shadow: 0 0 14px var(--sky);
+    animation: packet 2.2s linear infinite;
+  }
+
+  @keyframes packet {
+    from {
+      left: 0;
+    }
+    50% {
+      left: calc(100% - 10px);
+    }
+    to {
+      left: 0;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .arch {
+      grid-template-columns: 1fr;
+      gap: 0;
+      padding-bottom: 0;
+    }
+
+    .link {
+      width: 2px;
+      height: 40px;
+      margin: 0 auto;
+      background: repeating-linear-gradient(180deg, rgba(4, 159, 217, 0.45) 0 6px, transparent 6px 12px);
+    }
+
+    .link i {
+      display: none;
+    }
+
+    .opts {
+      position: relative;
+      left: auto;
+      transform: none;
+      flex-direction: column;
+      margin-top: 2.6rem;
+    }
+
+    .node.opt {
+      width: auto;
+    }
+  }
+
+  /* ---------- Security ---------- */
+  .sec-panel {
+    display: grid;
+    grid-template-columns: 1fr 1.15fr;
+    gap: clamp(2rem, 5vw, 4rem);
+    padding: clamp(2rem, 5vw, 3.5rem);
+    border-radius: 28px;
+    background:
+      radial-gradient(circle at 0% 0%, rgba(0, 188, 235, 0.12), transparent 50%),
+      radial-gradient(circle at 100% 100%, rgba(10, 96, 216, 0.1), transparent 50%),
+      var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+
+  .sec-copy .btn {
+    margin-top: 0.5rem;
+  }
+
+  .sec-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    align-content: center;
+  }
+
+  .sec-item {
+    display: flex;
+    gap: 0.75rem;
+    padding: 1rem;
+    border-radius: 14px;
+    background: rgba(245, 248, 252, 0.8);
+    border: 1px solid var(--line);
+    color: var(--royal);
+  }
+
+  .sec-item svg {
+    flex: none;
+    margin-top: 2px;
+  }
+
+  .sec-item div {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .sec-item strong {
+    color: var(--ink);
+    font-size: 0.95rem;
+  }
+
+  .sec-item span {
+    color: var(--muted);
+    font-size: 0.86rem;
+    line-height: 1.45;
+  }
+
+  @media (max-width: 900px) {
+    .sec-panel {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .sec-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* ---------- CTA ---------- */
+  .cta {
+    margin-top: 2rem;
+  }
+
+  .cta-inner {
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+    padding: clamp(3rem, 7vw, 5rem) 1.5rem;
+    border-radius: 32px;
+    color: #fff;
+    background:
+      radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.22), transparent 40%),
+      linear-gradient(120deg, #00bceb, #049fd9 40%, #0a60d8 80%, #0d274d);
+    box-shadow: 0 40px 80px -40px rgba(10, 96, 216, 0.7);
+  }
+
+  .cta-inner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse at center, #000, transparent 75%);
+    pointer-events: none;
+  }
+
+  .cta h2 {
+    position: relative;
+    color: #fff;
+    max-width: 20ch;
+    margin-inline: auto;
+  }
+
+  .cta p {
+    position: relative;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 1.1rem;
+  }
+
+  .cta .hero-cta {
+    position: relative;
+  }
+
+  .btn-light {
+    background: #fff;
+    color: var(--midnight);
+    box-shadow: 0 10px 30px -10px rgba(7, 24, 45, 0.5);
+  }
+
+  .btn-light:hover {
+    color: var(--royal);
+  }
+
+  .btn-outline {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+
+  .btn-outline:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    border-color: #fff;
+  }
+</style>

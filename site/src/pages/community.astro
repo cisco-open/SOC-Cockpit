@@ -1,0 +1,234 @@
+---
+// SPDX-FileCopyrightText: 2026 Cisco Systems, Inc.
+// SPDX-License-Identifier: Apache-2.0
+import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
+import { REPO } from '../lib/site';
+
+const maintainers = [
+  { name: 'Kunal Hatode', handle: 'ke0xes', role: 'Original author' },
+];
+
+const ways = [
+  { icon: 'alert', title: 'Report a bug', text: 'Found something broken? Open an issue with steps to reproduce.', href: `${REPO}/issues/new/choose` },
+  { icon: 'sparkles', title: 'Request a feature', text: 'Tell us what your SOC needs next from its management layer.', href: `${REPO}/issues/new/choose` },
+  { icon: 'github', title: 'Send a pull request', text: 'Fork, branch, sign off your commits (DCO) and open a PR.', href: `${REPO}/blob/main/CONTRIBUTING.md` },
+  { icon: 'lock', title: 'Report a vulnerability', text: 'Use private vulnerability reporting — never a public issue.', href: `${REPO}/security/policy` },
+] as const;
+---
+
+<Base title="Community" description="Contribute to SOC Cockpit: maintainers, contribution guidelines and how to get involved.">
+  <section class="wrap page-hero">
+    <span class="eyebrow">Community</span>
+    <h1>Built in the open. <span class="grad-text">Shaped by SOCs.</span></h1>
+    <p class="lede">
+      SOC Cockpit is community open source published by Cisco Open under the Apache 2.0 License. Every change is reviewable in
+      the public history and pull-request workflow.
+    </p>
+  </section>
+
+  <section class="wrap">
+    <div class="ways">
+      {
+        ways.map((w) => (
+          <a class="card reveal" href={w.href} rel="noopener">
+            <div class="icon-tile">
+              <Icon name={w.icon} />
+            </div>
+            <h3>{w.title}</h3>
+            <p>{w.text}</p>
+            <span class="go">
+              <Icon name="arrow" size={16} />
+            </span>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="wrap section">
+    <div class="section-head reveal">
+      <span class="eyebrow">Maintainers</span>
+      <h2>The people behind it.</h2>
+    </div>
+    <div class="people">
+      {
+        maintainers.map((m) => (
+          <a class="person reveal" href={`https://github.com/${m.handle}`} rel="noopener">
+            <span class="avatar" aria-hidden="true">
+              {m.name
+                .split(' ')
+                .map((p) => p[0])
+                .join('')}
+            </span>
+            <span>
+              <strong>{m.name}</strong>
+              <em>@{m.handle} · {m.role}</em>
+            </span>
+          </a>
+        ))
+      }
+    </div>
+
+    <div class="guide reveal">
+      <div>
+        <h3>Before you contribute</h3>
+        <ul>
+          <li><Icon name="check" size={16} /> Sign off every commit (<code>git commit -s</code>) — the DCO is required.</li>
+          <li><Icon name="check" size={16} /> Read the development guide for local setup, build steps and coding conventions.</li>
+          <li><Icon name="check" size={16} /> Make sure <code>npm run build</code> passes before opening a pull request.</li>
+          <li><Icon name="check" size={16} /> Follow the Code of Conduct in issues, reviews and discussions.</li>
+        </ul>
+      </div>
+      <div class="guide-links">
+        <a class="btn btn-primary" href={`${REPO}/blob/main/CONTRIBUTING.md`} rel="noopener">Contributing guide <Icon name="arrow" size={16} /></a>
+        <a class="btn btn-ghost" href={`${REPO}/blob/main/CODE_OF_CONDUCT.md`} rel="noopener"><Icon name="heart" size={16} /> Code of conduct</a>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .ways {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+  }
+
+  .ways .card {
+    color: inherit;
+    display: block;
+  }
+
+  .go {
+    position: absolute;
+    top: 1.6rem;
+    right: 1.6rem;
+    color: var(--muted);
+    transition: transform 0.2s ease, color 0.2s ease;
+  }
+
+  .ways .card:hover .go {
+    color: var(--royal);
+    transform: translateX(3px);
+  }
+
+  .people {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+
+  .person {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.1rem 1.25rem;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    color: var(--ink);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+
+  .person:hover {
+    color: var(--ink);
+    border-color: var(--sky);
+    box-shadow: var(--glow);
+  }
+
+  .person > span:last-child {
+    display: grid;
+  }
+
+  .person em {
+    font-style: normal;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .avatar {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    flex: none;
+    border-radius: 50%;
+    color: #fff;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    background: var(--grad);
+    box-shadow: 0 0 0 4px rgba(0, 188, 235, 0.15);
+  }
+
+  .guide {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 2rem;
+    align-items: center;
+    margin-top: 3rem;
+    padding: 2rem;
+    border-radius: 24px;
+    background: radial-gradient(circle at 100% 0%, rgba(0, 188, 235, 0.12), transparent 50%), var(--surface);
+    border: 1px solid var(--line);
+  }
+
+  .guide ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .guide li {
+    display: flex;
+    gap: 0.6rem;
+    color: var(--ink-2);
+  }
+
+  .guide li svg {
+    flex: none;
+    margin-top: 4px;
+    color: var(--blue);
+  }
+
+  .guide code {
+    padding: 0.1em 0.4em;
+    border-radius: 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+  }
+
+  .guide-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: flex-end;
+  }
+
+  @media (max-width: 1000px) {
+    .ways {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .people {
+      grid-template-columns: 1fr;
+    }
+
+    .guide {
+      grid-template-columns: 1fr;
+    }
+
+    .guide-links {
+      justify-content: flex-start;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .ways {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

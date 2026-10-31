@@ -1,0 +1,112 @@
+---
+// SPDX-FileCopyrightText: 2026 Cisco Systems, Inc.
+// SPDX-License-Identifier: Apache-2.0
+import { getEntry } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
+import { REPO } from '../lib/site';
+
+const entry = await getEntry('docs', 'faq');
+if (!entry?.rendered) throw new Error('FAQ.md not found at the repository root');
+
+// FAQ.md links to sibling repo files (e.g. SECURITY.md); point those at GitHub.
+const html = entry.rendered.html.replace(
+  /href="(?:\.\/)?([\w.-]+(?:\/[\w.-]+)*)(#[\w-]*)?"/g,
+  (_, file: string, hash = '') => `href="${REPO}/blob/main/${file}${hash}" rel="noopener"`,
+);
+const headings = entry.rendered.metadata?.headings ?? [];
+const sections = headings.filter((h) => h.depth === 2 && h.slug !== 'contents');
+---
+
+<Base title="Security & deployment FAQ" description="How SOC Cockpit is designed to be deployed, secured and operated.">
+  <section class="wrap page-hero">
+    <span class="eyebrow">FAQ</span>
+    <h1>Security &amp; <span class="grad-text">deployment.</span></h1>
+    <p class="lede">
+      What the project provides today, how it is designed to run, and where responsibility sits between the application and
+      its environment.
+    </p>
+  </section>
+
+  <div class="wrap docs">
+    <aside>
+      <nav aria-label="FAQ sections">
+        <span class="label">On this page</span>
+        {sections.map((h) => <a href={`#${h.slug}`}>{h.text}</a>)}
+        <a class="edit" href={`${REPO}/blob/main/FAQ.md`} rel="noopener"><Icon name="github" size={14} /> Edit on GitHub</a>
+      </nav>
+    </aside>
+    <article class="prose" set:html={html} />
+  </div>
+</Base>
+
+<style>
+  .docs {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: clamp(2rem, 5vw, 4.5rem);
+    align-items: start;
+  }
+
+  aside nav {
+    position: sticky;
+    top: 92px;
+    display: grid;
+    gap: 0.15rem;
+    padding: 1.1rem;
+    border-radius: var(--radius);
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid var(--line);
+    backdrop-filter: blur(10px);
+  }
+
+  .label {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+
+  aside a {
+    padding: 0.35rem 0.6rem;
+    border-radius: 8px;
+    color: var(--ink-2);
+    font-size: 0.88rem;
+    line-height: 1.35;
+  }
+
+  aside a:hover {
+    color: var(--royal);
+    background: var(--grad-soft);
+  }
+
+  aside .edit {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+
+  /* The FAQ's own table of contents duplicates the sidebar. */
+  .prose :global(#contents),
+  .prose :global(#contents + ul) {
+    display: none;
+  }
+
+  @media (max-width: 900px) {
+    .docs {
+      grid-template-columns: 1fr;
+    }
+
+    aside nav {
+      position: static;
+    }
+  }
+</style>

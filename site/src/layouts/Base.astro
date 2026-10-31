@@ -1,0 +1,340 @@
+---
+// SPDX-FileCopyrightText: 2026 Cisco Systems, Inc.
+// SPDX-License-Identifier: Apache-2.0
+import '../styles/global.css';
+import Icon from '../components/Icon.astro';
+import Logo from '../components/Logo.astro';
+import { REPO, VERSION, nav, url } from '../lib/site';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title,
+  description = 'SOC Cockpit is an open-source operational command console for SOC managers: rosters, stand-ups, objectives, issues and KPIs in one shared, durable home.',
+} = Astro.props;
+
+const fullTitle = title ? `${title} · SOC Cockpit` : 'SOC Cockpit — the command layer for your SOC';
+const current = Astro.url.pathname.replace(/\/$/, '');
+const isActive = (href: string) => url(href).replace(/\/$/, '') === current;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/svg+xml" href={url('favicon.svg')} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta name="theme-color" content="#f5f8fc" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a class="brand" href={url()} aria-label="SOC Cockpit home">
+          <Logo />
+          <span>SOC Cockpit</span>
+          <em>v{VERSION}</em>
+        </a>
+
+        <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Toggle navigation" />
+        <label for="nav-toggle" class="nav-burger" aria-hidden="true"><i></i><i></i></label>
+
+        <nav aria-label="Primary">
+          <ul>
+            {
+              nav.map((item) => (
+                <li>
+                  <a href={url(item.href)} aria-current={isActive(item.href) ? 'page' : undefined}>
+                    {item.label}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+          <a class="btn btn-ghost nav-gh" href={REPO} rel="noopener">
+            <Icon name="github" size={18} /> GitHub
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <slot />
+    </main>
+
+    <footer class="footer">
+      <div class="wrap footer-grid">
+        <div>
+          <a class="brand" href={url()}>
+            <Logo size={26} />
+            <span>SOC Cockpit</span>
+          </a>
+          <p>The command layer for security operations management. Community open source from Cisco Open.</p>
+        </div>
+        <div>
+          <h4>Project</h4>
+          <a href={url('tour/')}>Product tour</a>
+          <a href={url('get-started/')}>Get started</a>
+          <a href={url('faq/')}>Security &amp; deployment FAQ</a>
+          <a href={`${REPO}/releases`} rel="noopener">Releases</a>
+        </div>
+        <div>
+          <h4>Community</h4>
+          <a href={`${REPO}/blob/main/CONTRIBUTING.md`} rel="noopener">Contributing</a>
+          <a href={`${REPO}/blob/main/CODE_OF_CONDUCT.md`} rel="noopener">Code of conduct</a>
+          <a href={`${REPO}/security/policy`} rel="noopener">Security policy</a>
+          <a href={`${REPO}/issues`} rel="noopener">Issues</a>
+        </div>
+        <div>
+          <h4>Cisco Open</h4>
+          <a href="https://opensource.cisco.com" rel="noopener">opensource.cisco.com</a>
+          <a href="https://github.com/cisco-open" rel="noopener">github.com/cisco-open</a>
+          <a href={`${REPO}/blob/main/LICENSE`} rel="noopener">Apache License 2.0</a>
+        </div>
+      </div>
+      <div class="wrap footer-base">
+        <span>© {new Date().getFullYear()} Cisco Systems, Inc. Licensed under Apache-2.0.</span>
+        <span>Created by <a href="https://github.com/ke0xes" rel="noopener">Kunal Hatode</a></span>
+        <span class="mono">All screenshot data is fictional.</span>
+      </div>
+    </footer>
+
+    <script>
+      document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const source = document.getElementById(button.dataset.copy ?? '');
+          if (!source) return;
+          const text = [...source.querySelectorAll('[data-line]')].map((line) => line.textContent).join('\n');
+          await navigator.clipboard.writeText(text);
+          const label = button.querySelector('span');
+          if (label) {
+            label.textContent = 'Copied';
+            setTimeout(() => (label.textContent = 'Copy'), 1600);
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
+
+<style>
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(245, 248, 252, 0.72);
+    backdrop-filter: saturate(1.6) blur(14px);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 68px;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--ink);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-size: 1.05rem;
+  }
+
+  .brand:hover {
+    color: var(--ink);
+  }
+
+  .brand em {
+    font-style: normal;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--blue);
+    padding: 0.15rem 0.45rem;
+    border-radius: 6px;
+    background: var(--grad-soft);
+    border: 1px solid rgba(4, 159, 217, 0.2);
+  }
+
+  nav {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  nav ul {
+    display: flex;
+    gap: 0.25rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  nav ul a {
+    display: block;
+    padding: 0.5rem 0.85rem;
+    border-radius: 999px;
+    color: var(--ink-2);
+    font-weight: 550;
+    font-size: 0.94rem;
+  }
+
+  nav ul a:hover {
+    color: var(--ink);
+    background: rgba(7, 24, 45, 0.05);
+  }
+
+  nav ul a[aria-current='page'] {
+    color: var(--royal);
+    background: var(--grad-soft);
+  }
+
+  .nav-gh {
+    --pad: 0.6rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .nav-toggle,
+  .nav-burger {
+    display: none;
+  }
+
+  @media (max-width: 860px) {
+    .nav-burger {
+      display: grid;
+      gap: 6px;
+      padding: 10px;
+      cursor: pointer;
+    }
+
+    .nav-burger i {
+      display: block;
+      width: 22px;
+      height: 2px;
+      border-radius: 2px;
+      background: var(--ink);
+      transition: transform 0.2s ease;
+    }
+
+    nav {
+      position: absolute;
+      top: 68px;
+      left: 0;
+      right: 0;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 1rem;
+      padding: 1rem 1.25rem 1.5rem;
+      background: rgba(245, 248, 252, 0.97);
+      border-bottom: 1px solid var(--line);
+      display: none;
+    }
+
+    nav ul {
+      flex-direction: column;
+    }
+
+    .nav-toggle:checked ~ nav {
+      display: flex;
+    }
+
+    .nav-toggle:checked + .nav-burger i:first-child {
+      transform: translateY(4px) rotate(45deg);
+    }
+
+    .nav-toggle:checked + .nav-burger i:last-child {
+      transform: translateY(-4px) rotate(-45deg);
+    }
+
+    .nav-toggle:focus-visible + .nav-burger {
+      outline: 2px solid var(--sky);
+      border-radius: 8px;
+    }
+  }
+
+  .footer {
+    margin-top: 4rem;
+    border-top: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), #fff);
+  }
+
+  .footer-grid {
+    display: grid;
+    grid-template-columns: 1.6fr repeat(3, 1fr);
+    gap: 2.5rem;
+    padding-block: 3.5rem 2.5rem;
+  }
+
+  .footer-grid p {
+    color: var(--muted);
+    font-size: 0.92rem;
+    max-width: 34ch;
+    margin-top: 1rem;
+  }
+
+  .footer h4 {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 1rem;
+  }
+
+  .footer-grid > div:not(:first-child) a {
+    display: block;
+    color: var(--ink-2);
+    font-size: 0.93rem;
+    padding-block: 0.25rem;
+  }
+
+  .footer-grid > div:not(:first-child) a:hover {
+    color: var(--royal);
+  }
+
+  .footer-base {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-block: 1.25rem 2rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  .mono {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+  }
+
+  @media (max-width: 860px) {
+    .footer-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .footer-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,0 +1,161 @@
+---
+// SPDX-FileCopyrightText: 2026 Cisco Systems, Inc.
+// SPDX-License-Identifier: Apache-2.0
+import { Image } from 'astro:assets';
+import Base from '../layouts/Base.astro';
+import { screens } from '../lib/site';
+---
+
+<Base title="Product tour" description="A guided tour of every SOC Cockpit module, shown with a fictional Meridian Global SOC dataset.">
+  <section class="wrap page-hero">
+    <span class="eyebrow">Product tour</span>
+    <h1>Eleven views. <span class="grad-text">One operational record.</span></h1>
+    <p class="lede">
+      Every screen below uses a fictional <strong>Meridian Global SOC</strong> dataset to illustrate a busy, real-world
+      operation. All names, metrics and events are fictitious.
+    </p>
+    <nav class="index" aria-label="Tour sections">
+      {
+        screens.map((s, i) => (
+          <a href={`#${s.id}`}>
+            <span>{String(i + 1).padStart(2, '0')}</span>
+            {s.title}
+          </a>
+        ))
+      }
+    </nav>
+  </section>
+
+  <div class="wrap tour">
+    {
+      screens.map((s, i) => (
+        <section id={s.id} class:list={['stop', { flip: i % 2 === 1 }]}>
+          <div class="stop-copy reveal">
+            <span class="num">{String(i + 1).padStart(2, '0')}</span>
+            <h2>{s.title}</h2>
+            <p>{s.text}</p>
+          </div>
+          <a class="shot reveal" href={s.image.src} aria-label={`Open full-size ${s.title} screenshot`}>
+            <div class="frame">
+              <div class="frame-bar">
+                <i />
+                <i />
+                <i />
+                <span>soc-cockpit / {s.id}</span>
+              </div>
+              <Image src={s.image} alt={`${s.title} screen`} widths={[700, 1200, 1800]} sizes="(max-width: 900px) 100vw, 760px" />
+            </div>
+          </a>
+        </section>
+      ))
+    }
+  </div>
+</Base>
+
+<style>
+  .index {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 2rem;
+  }
+
+  .index a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.85rem 0.45rem 0.5rem;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+    font-size: 0.88rem;
+    font-weight: 550;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .index a:hover {
+    color: var(--ink);
+    border-color: var(--sky);
+    box-shadow: var(--glow);
+  }
+
+  .index span {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--grad);
+    border-radius: 999px;
+    padding: 0.15rem 0.45rem;
+  }
+
+  .tour {
+    display: grid;
+    gap: clamp(4rem, 9vw, 7rem);
+    padding-block: 3rem 2rem;
+  }
+
+  .stop {
+    display: grid;
+    grid-template-columns: 0.75fr 1.6fr;
+    gap: clamp(2rem, 5vw, 4rem);
+    align-items: center;
+    scroll-margin-top: 6rem;
+  }
+
+  .stop.flip {
+    grid-template-columns: 1.6fr 0.75fr;
+  }
+
+  .stop.flip .stop-copy {
+    order: 2;
+  }
+
+  .num {
+    display: block;
+    font-family: var(--mono);
+    font-size: 3.4rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 1rem;
+    background: var(--grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    opacity: 0.9;
+  }
+
+  .stop-copy h2 {
+    font-size: clamp(1.6rem, 2.6vw, 2.1rem);
+  }
+
+  .stop-copy p {
+    color: var(--ink-2);
+    font-size: 1.05rem;
+  }
+
+  .shot {
+    display: block;
+    transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  .shot:hover {
+    transform: translateY(-4px) scale(1.01);
+  }
+
+  .shot:hover .frame {
+    box-shadow: var(--glow);
+  }
+
+  @media (max-width: 900px) {
+    .stop,
+    .stop.flip {
+      grid-template-columns: 1fr;
+    }
+
+    .stop.flip .stop-copy {
+      order: 0;
+    }
+  }
+</style>

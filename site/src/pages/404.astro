@@ -1,0 +1,33 @@
+---
+// SPDX-FileCopyrightText: 2026 Cisco Systems, Inc.
+// SPDX-License-Identifier: Apache-2.0
+import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
+import { url } from '../lib/site';
+---
+
+<Base title="Not found">
+  <section class="wrap lost">
+    <span class="code grad-text">404</span>
+    <h1>Signal lost.</h1>
+    <p class="lede">This page is off the roster. Head back to the console.</p>
+    <a class="btn btn-primary" href={url()}>Back to overview <Icon name="arrow" size={18} /></a>
+  </section>
+</Base>
+
+<style>
+  .lost {
+    display: grid;
+    justify-items: center;
+    text-align: center;
+    padding-block: clamp(5rem, 14vw, 9rem);
+  }
+
+  .code {
+    font-family: var(--mono);
+    font-size: clamp(5rem, 16vw, 9rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+</style>
