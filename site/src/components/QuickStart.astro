@@ -1,0 +1,18 @@
+---
+// SPDX-FileCopyrightText: 2026 Cisco Systems, Inc.
+// SPDX-License-Identifier: Apache-2.0
+import Icon from './Icon.astro';
+
+const id = 'quickstart';
+---
+
+<div class="terminal" id={id}>
+  <button class="copy" type="button" data-copy={id} aria-label="Copy commands"><Icon name="copy" size={13} /><span>Copy</span></button>
+  <div><span class="c"># clone and install</span></div>
+  <div><span class="p">$ </span><span data-line>git clone https://github.com/cisco-open/SOC-Cockpit.git</span></div>
+  <div><span class="p">$ </span><span data-line>cd SOC-Cockpit &amp;&amp; npm install</span></div>
+  <div><span class="c"># configure (optional: Active Directory, LLM endpoint)</span></div>
+  <div><span class="p">$ </span><span data-line>cp .env.example .env</span></div>
+  <div><span class="c"># web UI on :5173, API on :3001 — first start prints a one-time Admin setup code</span></div>
+  <div><span class="p">$ </span><span data-line>npm run dev</span></div>
+</div>
