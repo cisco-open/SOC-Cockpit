@@ -1,19 +1,24 @@
 // SPDX-FileCopyrightText: 2026 Cisco Systems, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { AppSnapshot, RecordKind, RosterLabel } from './types';
+import type { AppSnapshot, AuthStatus, AuthUser, DirectoryLookupResult, DirectorySettingsDraft, DirectorySettingsResponse, DirectoryTestResult, ManagedUserList, RecordKind, RosterLabel, UserRole, UserStatus } from './types';
+
+export const AUTH_EXPIRED_EVENT = 'soc-auth-expired';
 
 async function request<T>(input: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers ?? {});
   if (!(init?.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
+  // Required by the server on every state-changing request (CSRF protection).
+  headers.set('X-Requested-With', 'soc-cockpit');
 
   let response: Response;
   try {
     response = await fetch(input, {
-      headers,
       ...init,
+      headers,
+      credentials: 'same-origin',
     });
   } catch (error) {
     if (error instanceof TypeError) {
@@ -23,6 +28,9 @@ async function request<T>(input: string, init?: RequestInit): Promise<T> {
   }
 
   if (!response.ok) {
+    if (response.status === 401 && !input.startsWith('/api/auth/')) {
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    }
     const error = await response.json().catch(() => ({}));
     throw new Error(error.error ?? `Request failed with status ${response.status}`);
   }
@@ -31,6 +39,17 @@ async function request<T>(input: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  authStatus: () => request<AuthStatus>('/api/auth/status'),
+  login: (username: string, password: string) => request<{ user: AuthUser }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  setup: (payload: { setupCode: string; username: string; email: string; password: string }) => request<{ user: AuthUser }>('/api/auth/setup', { method: 'POST', body: JSON.stringify(payload) }),
+  logout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
+  listUsers: () => request<ManagedUserList>('/api/admin/users'),
+  createUser: (payload: { username: string; email: string; password: string; role: UserRole }) => request<ManagedUserList>('/api/admin/users', { method: 'POST', body: JSON.stringify(payload) }),
+  updateUser: (id: number, payload: { role?: UserRole; status?: UserStatus }) => request<ManagedUserList>(`/api/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  getDirectorySettings: () => request<DirectorySettingsResponse>('/api/admin/directory'),
+  saveDirectorySettings: (draft: DirectorySettingsDraft) => request<DirectorySettingsResponse>('/api/admin/directory', { method: 'PUT', body: JSON.stringify(draft) }),
+  testDirectory: (draft: DirectorySettingsDraft) => request<DirectoryTestResult>('/api/admin/directory/test', { method: 'POST', body: JSON.stringify(draft) }),
+  lookupDirectoryUser: (draft: DirectorySettingsDraft, username: string) => request<DirectoryLookupResult>('/api/admin/directory/lookup', { method: 'POST', body: JSON.stringify({ settings: draft, username }) }),
   getSnapshot: () => request<AppSnapshot>('/api/snapshot'),
   createRecord: (kind: RecordKind, payload: Record<string, unknown>) => request<AppSnapshot>(`/api/${kind}`, { method: 'POST', body: JSON.stringify(payload) }),
   deleteRecord: (kind: RecordKind, id: number) => request<AppSnapshot>(`/api/${kind}/${id}`, { method: 'DELETE' }),

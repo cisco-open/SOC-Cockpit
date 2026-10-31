@@ -73,8 +73,8 @@ Concretely, we recommend:
 - **Authenticate at the edge** so only known, approved SOC staff can reach the
   application (see
   [Authentication and access control](#authentication-and-access-control)).
-- **Set a strong `SOC_API_TOKEN`** so the API is not reachable without both the
-  network path *and* the token.
+- **Keep the built-in sign-in enabled** and grant the Admin role sparingly, so
+  the app is not usable without both the network path *and* a valid account.
 
 Because several enterprise controls are delegated to this surrounding
 environment, deploying inside a restricted, staff-only network is a baseline
@@ -114,7 +114,7 @@ way to achieve the same outcome at the infrastructure layer.
 - **Least-privilege error output** — responses for server (5xx) conditions are
   generic and never leak stack traces or internal details; full detail is logged
   server-side only.
-- **Secrets as configuration** — secrets (API token, LLM keys) are supplied via
+- **Secrets as configuration** — secrets (LDAP service account, LLM keys) are supplied via
   environment variables / `.env`, which is excluded from version control. No
   secrets are committed to the repository.
 - **Dependency hygiene** — a small, pinned set of well-known dependencies, with
@@ -136,8 +136,9 @@ Several concrete controls map directly to common OWASP risks:
   extension allowlist, a size limit, a single-file limit, randomized (UUID-based)
   stored filenames, and **magic-number signature validation** so a renamed file
   cannot bypass the allowlist; files that fail validation are deleted.
-- **Broken access control (A01):** an optional shared token gates the API and
-  uploads; directory indexing and dotfiles are denied on the static uploads route.
+- **Broken access control (A01):** every `/api` and `/uploads` request requires a
+  signed-in user, and write actions are checked against the user's role;
+  directory indexing and dotfiles are denied on the static uploads route.
 - **Vulnerable components (A06):** dependencies are pinned and monitored via
   `npm audit` (see [SECURITY.md](SECURITY.md)).
 - **Security logging (A09):** security-relevant events are logged for collection
@@ -160,7 +161,9 @@ repository for updates.
 
 ### What API security controls are in place?
 
-- Optional shared-token authentication on all `/api` and `/uploads` routes.
+- Per-user session authentication on all `/api` and `/uploads` routes, with
+  role checks (Viewer / Operator / Admin), CSRF protection via a required
+  request header, and throttling of failed sign-in attempts.
 - Structured JSON error handling that returns generic messages for server errors
   without leaking internals.
 - Upload endpoints that enforce type allowlist, size/count limits and signature
@@ -168,14 +171,16 @@ repository for updates.
 - Static uploads serving that denies directory listing and dotfiles and forces
   safe download headers.
 
-We recommend additionally enforcing TLS, per-user authentication/authorization,
-rate limiting and request-size limits at the proxy/ingress layer.
+We recommend additionally enforcing TLS, rate limiting and request-size limits
+at the proxy/ingress layer.
 
 ### What hardening steps are recommended for a production deployment?
 
 1. Terminate TLS at a reverse proxy / ingress with certificates from your PKI.
-2. Authenticate users at an SSO / identity-aware proxy (AD/LDAP/OIDC/SAML).
-3. Set a strong `SOC_API_TOKEN`, store it in your secrets manager, and rotate it.
+2. Complete first-time setup immediately after the first start, and connect
+   Active Directory over `ldaps://` (or StartTLS) if you use company accounts.
+3. Keep `SESSION_COOKIE_SECURE` enabled (default in production) and serve the
+   app only over HTTPS.
 4. Keep the app on loopback / a private network; expose it only through the proxy.
 5. Run as a non-root, least-privilege service account; restrict the `data/` and
    `uploads/` directories to that account.
@@ -191,56 +196,54 @@ rate limiting and request-size limits at the proxy/ingress layer.
 
 ### Does SOC Cockpit support LDAP / Active Directory integration?
 
-Not in the current release — the application does not maintain its own user
-directory or per-user login. The recommended approach is to place SOC Cockpit
-behind an authenticating reverse proxy or identity-aware access proxy (for
-example an SSO/OIDC or SAML gateway, or a Zero Trust access proxy) that
-authenticates users against your Active Directory / LDAP / IdP before requests
-reach the application. This keeps directory integration under your existing,
-approved identity controls. Native IdP integration is a possible future
-enhancement, and contributions are welcome.
+**Yes.** An Admin configures it in the app under **Users > Company directory**:
+server address, port, security mode (LDAPS, StartTLS, or unencrypted for labs
+only), trusted CA certificate, timeout, a read-only service account, the search
+starting point, the sign-in name type, an optional required group, new-user
+handling (Admin approval or immediate access), the starting role, and
+group-to-role mapping. **Test connection** and **Look up a user** buttons check
+the settings before saving. Changes apply without a restart and are logged.
+
+The same values can be set with `LDAP_*` environment variables; those override
+the in-app values and show as locked. The service account password saved in the
+app is encrypted (AES-256-GCM) with `SETTINGS_ENCRYPTION_KEY` or, if unset, a
+key file in `data/`.
+
+Company users sign in with their directory username and password; the app looks
+them up with the service account and then verifies their password by binding as
+that user. Passwords are never stored for company users. Group checks use direct
+membership only (nested groups are not expanded).
 
 ### Does it provide Role-Based Access Control (RBAC)?
 
-Not currently. SOC Cockpit uses a single-tier access model intended for a trusted
-SOC-management team working on a shared operational record, rather than segregated
-multi-tenant access. Where role separation is required, we recommend enforcing it
-at the access-proxy layer (for example by restricting who can reach the
-application by AD group). Application-level RBAC is a reasonable roadmap item for
-organizations that need it.
+**Yes**, with three roles: **Viewer** (read-only, may use the assistant),
+**Operator** (read and edit cockpit data) and **Admin** (everything, plus the
+**Users** page to add local users, change roles, approve company users and
+block accounts). The last active Admin cannot be blocked or demoted.
 
 ### How does authentication and authorization work today?
 
-The API supports an **optional shared bearer token** (`SOC_API_TOKEN`). When set,
-every `/api` and `/uploads` request must present the token as either an
-`Authorization: Bearer <token>` header or an `x-api-key` header, or it is rejected
-with `401 Unauthorized`. When the token is not set, the API is open to any caller
-that can reach it on the network — so for any shared or non-local deployment we
-recommend always setting a strong token **and** placing the application behind an
-authenticating proxy. For individual user identities and MFA, use the
-authenticating proxy / SSO gateway described above; the token model is intended
-as a service-to-service / shared-secret control, not a replacement for enterprise
-user authentication.
+Every `/api` and `/uploads` request needs a signed-in user. Signing in creates a
+random session token stored in an `HttpOnly`, `SameSite=Strict` cookie (also
+`Secure` in production); only a hash of the token is kept in the database. Every
+state-changing request must carry an `X-Requested-With: soc-cockpit` header,
+which blocks cross-site request forgery. Blocking a user ends their sessions
+immediately.
 
 ### How are administrative and user accounts managed?
 
-The application does not maintain named user accounts, an admin console, or a user
-database. Administration is operational: managing the environment configuration
-(`.env`), the deployment, the data directory, and the optional API token. Because
-there are no in-app credentials for people, user provisioning and
-de-provisioning are handled by whatever identity/proxy layer you place in front of
-the app — keeping them within your existing identity governance.
+On first start with an empty user table, the server prints a one-time setup code
+to its console. The first person to enter it on the setup page creates the first
+Admin; after that, public sign-up is permanently disabled. Admins then manage
+accounts from the **Users** page.
 
 ### How are sessions and password policies handled?
 
-There is no in-app login, session, or password store, so there are no
-application-managed passwords or session cookies to attack. The optional API token
-is a static shared secret and should be treated like any other secret (strong,
-randomly generated, stored in a secrets manager, and rotated on a schedule and on
-personnel changes). Where per-user sessions and password/MFA policy are required,
-they are provided by the authenticating proxy / SSO gateway in front of the
-application, and thus inherit your enterprise session-timeout, MFA and password
-policies directly.
+Local passwords must be 12–256 characters and are hashed with scrypt (N=2^17,
+r=8, p=1) and a random salt. Sessions expire after `SESSION_TTL_HOURS`
+(default 12). After 5 failed sign-in attempts for the same username from the
+same address, further attempts are refused for 15 minutes. Company (AD) users
+inherit the password and lockout policies of your directory.
 
 ---
 
@@ -416,8 +419,8 @@ server {
 </VirtualHost>
 ```
 
-Pair the proxy with a strong `SOC_API_TOKEN` so the API is not reachable without
-both the network path *and* the token.
+Pair the proxy with the built-in sign-in so the app is not usable without both
+the network path *and* a valid account.
 
 ---
 
@@ -443,7 +446,7 @@ reference manifests is a reasonable roadmap item, and contributions are welcome.
 - A **persistent, encrypted volume** for the `data/` (SQLite) and `uploads/`
   directories, since these hold all state.
 - **Environment configuration** via environment variables / secrets (`PORT`,
-  `NODE_ENV=production`, `SOC_API_TOKEN`, and optional LLM settings) — inject
+  `NODE_ENV=production`, optional `LDAP_*` and LLM settings) — inject
   secrets via your platform's secret store, not baked into the image.
 - Exposure **only through your ingress / reverse proxy** for TLS and
   authentication.

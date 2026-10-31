@@ -177,8 +177,8 @@ On Windows PowerShell, use `npm.cmd` if script execution policy blocks `npm`.
 
 - `src/`: web UI, API client, and module views.
 - `server/app.cjs`: Express API server and production static hosting.
-- `server/db.cjs`: SQLite schema, seed data, CRUD operations, and advisor brief
-  generation.
+- `server/db.cjs`: SQLite schema, default settings, CRUD operations, and advisor
+  brief generation.
 
 ## Commands
 
@@ -198,7 +198,13 @@ values:
 | ----------------- | -------- | --------------------------- | --------------------------------------------------- |
 | `PORT`            | No       | `3001`                      | API / production server port.                       |
 | `NODE_ENV`        | No       | `development`               | Set to `production` to serve the built frontend.    |
-| `SOC_API_TOKEN`   | No       | _(unset)_                   | Optional shared token to protect the API.           |
+| `SESSION_TTL_HOURS` | No     | `12`                        | How long a sign-in session lasts.                   |
+| `SESSION_COOKIE_SECURE` | No | `true` in production        | Send the session cookie over HTTPS only.            |
+| `LDAP_URL`        | No       | _(unset)_                   | `ldaps://` URL of Active Directory. Empty = local accounts only. |
+| `LDAP_BASE_DN`    | With LDAP | _(unset)_                  | Search base for user lookups.                       |
+| `LDAP_BIND_DN` / `LDAP_BIND_PASSWORD` | With LDAP | _(unset)_ | Read-only service account for user lookups.   |
+| `LDAP_USER_FILTER` | No      | `sAMAccountName={username}` filter | LDAP filter used to find the user.          |
+| `LDAP_STARTTLS`, `LDAP_CA_CERT_PATH`, `LDAP_ALLOW_INSECURE` | No | `false` / _(unset)_ / `false` | TLS options for LDAP. |
 | `OPENAI_API_KEY`  | No       | _(unset)_                   | Enables AI features. If empty, a local fallback is used. |
 | `OPENAI_BASE_URL` | No       | `https://api.openai.com/v1` | Base URL of an OpenAI-compatible API.               |
 | `OPENAI_MODEL`    | No       | `gpt-4o-mini`               | Model / deployment name.                            |
@@ -209,8 +215,17 @@ OpenAI-compatible gateways, and self-hosted servers such as Ollama or vLLM.
 
 ## Behavior notes
 
-- Seed data is loaded automatically the first time the SQLite database is
-  created.
+- **Sign-in is required.** On first start (no users), the server prints a
+  one-time setup code to its console; open the app and use it to create the
+  first Admin. Public setup is then disabled for good.
+- Users are either **local** (password hashed with scrypt) or **company**
+  (checked against Active Directory). Company users are registered on their
+  first sign-in but stay blocked until an Admin approves them in **Users**.
+- Roles: **Viewer** (read-only), **Operator** (read and edit), **Admin**
+  (everything plus user management).
+- A new database starts empty apart from default settings (clock zones, shift
+  labels); no sample records are loaded. The screenshots above use a fictional
+  dataset.
 - The API is the source of truth for all editable modules.
 - Production mode serves the built frontend from the Express server.
 - `data/`, `uploads/`, and `artifacts/` hold local runtime data and are

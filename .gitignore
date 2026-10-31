@@ -6,6 +6,9 @@ data/
 uploads/
 artifacts/
 
+# Private local Copilot rules — keep off GitHub
+.github/copilot-instructions.md
+
 # Dependencies and build output
 node_modules/
 dist/

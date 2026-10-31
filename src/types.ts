@@ -13,6 +13,89 @@ export type MatrixQuadrant = 'Do' | 'Delegate' | 'Delay' | 'Discard';
 export type MatrixStatus = 'Not Completed' | 'Completed';
 export type RecordKind = 'kpi' | 'rosterAssignment' | 'matrixTask' | 'objective' | 'issue' | 'followUp' | 'project' | 'process' | 'contact' | 'note';
 
+export type UserRole = 'Admin' | 'Operator' | 'Viewer';
+export type UserStatus = 'active' | 'inactive';
+export type AccountType = 'local' | 'ldap';
+
+export interface AuthUser {
+  id: number;
+  username: string;
+  email: string;
+  displayName: string;
+  accountType: AccountType;
+  role: UserRole;
+}
+
+export interface AuthStatus {
+  setupRequired: boolean;
+  ldapEnabled: boolean;
+  user: AuthUser | null;
+}
+
+export interface ManagedUser {
+  id: number;
+  username: string;
+  email: string;
+  displayName: string;
+  accountType: AccountType;
+  status: UserStatus;
+  role: UserRole;
+  createdAt: string;
+  lastLoginAt: string | null;
+}
+
+export interface ManagedUserList {
+  users: ManagedUser[];
+  roles: UserRole[];
+}
+
+export type DirectorySecurity = 'ldaps' | 'starttls' | 'none';
+export type DirectoryLoginAttribute = 'sAMAccountName' | 'userPrincipalName' | 'custom';
+
+export interface DirectorySettings {
+  enabled: boolean;
+  host: string;
+  port: number;
+  security: DirectorySecurity;
+  caCert: string;
+  timeoutSeconds: number;
+  bindDN: string;
+  baseDN: string;
+  loginAttribute: DirectoryLoginAttribute;
+  customFilter: string;
+  requiredGroup: string;
+  newUserMode: 'approval' | 'auto';
+  defaultRole: UserRole;
+  groupRoles: Array<{ group: string; role: UserRole }>;
+}
+
+export type DirectorySettingsDraft = DirectorySettings & { bindPassword?: string; clearBindPassword?: boolean };
+
+export interface DirectorySettingsResponse {
+  settings: DirectorySettings;
+  hasBindPassword: boolean;
+  locked: string[];
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export interface DirectoryTestResult {
+  ok: boolean;
+  steps: Array<{ label: string; ok: boolean; detail: string }>;
+}
+
+export interface DirectoryLookupResult {
+  found: boolean;
+  message?: string;
+  dn?: string;
+  displayName?: string;
+  email?: string;
+  groups?: string[];
+  allowed?: boolean;
+  roleOnSignIn?: UserRole;
+  needsApproval?: boolean;
+}
+
 export interface NavItem {
   key: string;
   label: string;
