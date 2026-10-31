@@ -3,7 +3,7 @@
 import type { ImageMetadata } from 'astro';
 
 export const REPO = 'https://github.com/cisco-open/SOC-Cockpit';
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0-beta.1';
 
 export function url(path = ''): string {
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
