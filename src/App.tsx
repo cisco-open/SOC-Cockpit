@@ -70,16 +70,20 @@ import {
 } from './data';
 import { UserManagementTab } from './UserAdmin';
 import { DirectorySettingsPanel } from './DirectorySettings';
-import type { AppSnapshot, AuthUser, FeedItem, Health, IssueRow, IssueStatus, MatrixQuadrant, MatrixStatus, ProjectRow, RecordKind, RosterAssignment, RosterLabel, Trend } from './types';
+import { ReportsView } from './Reports';
+import { SlaPolicySettings } from './SlaPolicies';
+import { computeKpiHealth } from './reportCalc';
+import type { AppSnapshot, AuthUser, FeedItem, Health, IssueRow, IssueStatus, KpiDirection, MatrixQuadrant, MatrixStatus, ProjectRow, RecordKind, RosterAssignment, RosterLabel, Trend } from './types';
 
-type ActiveView = 'overview' | 'workforce' | 'standups' | 'service' | 'issues' | 'objectives' | 'projects' | 'processes' | 'contacts' | 'notes' | 'advisor' | 'settings';
+type ActiveView = 'overview' | 'workforce' | 'standups' | 'service' | 'issues' | 'objectives' | 'projects' | 'processes' | 'contacts' | 'notes' | 'reports' | 'advisor' | 'settings';
 
-type SettingsTab = 'appearance' | 'clocks' | 'readiness' | 'system' | 'users' | 'directory';
+type SettingsTab = 'appearance' | 'clocks' | 'readiness' | 'sla' | 'system' | 'users' | 'directory';
 
 const settingsTabs: Array<{ key: SettingsTab; label: string; icon: typeof Palette; adminOnly?: boolean }> = [
   { key: 'appearance', label: 'Appearance', icon: Palette },
   { key: 'clocks', label: 'World clocks', icon: Clock3, adminOnly: true },
   { key: 'readiness', label: 'Readiness levers', icon: Gauge, adminOnly: true },
+  { key: 'sla', label: 'SLA & KPI policies', icon: ShieldCheck, adminOnly: true },
   { key: 'system', label: 'System status', icon: Database, adminOnly: true },
   { key: 'users', label: 'User Management', icon: Users, adminOnly: true },
   { key: 'directory', label: 'Company Directory (LDAP / AD)', icon: Building2, adminOnly: true },
@@ -135,7 +139,7 @@ const defaultProjectForm = { code: '', name: '', owner: '', phase: '', due: '', 
 const defaultProcessForm = { code: '', name: '', owner: '', cadence: '', maturity: 0, health: 'watch' as Health, notes: '' };
 const defaultContactForm = { name: '', role: '', channel: '', email: '', phone: '', scope: 'Staff', isLead: false };
 const defaultNoteForm = { noteDate: isoDate(0), text: '', pinned: false };
-const defaultKpiForm = { code: '', name: '', actual: '', target: '', delta: '', trend: 'flat' as Trend, health: 'watch' as Health };
+const defaultKpiForm = { code: '', name: '', actual: '', target: '', delta: '', trend: 'flat' as Trend, health: 'watch' as Health, direction: '' as KpiDirection, tolerance: 5 };
 const defaultRosterLabelForm: RosterLabel = { code: '', label: '', hours: '07:00-19:00', status: 'Confirmed', health: 'healthy', fill: '#32b7c6', textColor: '#ffffff' };
 const DOCUMENT_UPLOAD_MAX_MB = 20;
 
@@ -1515,7 +1519,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                   <td><span className="status">{dot(item.health)}{item.actual}</span></td>
                   <td className="muted">{item.target}</td>
                   <td className="kpi-trend-cell"><span className={`kpi-trend ${item.trend}`}><TrendGlyph trend={item.trend} />{item.delta}</span></td>
-                  <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setKpiForm({ code: item.code, name: item.name, actual: item.actual, target: item.target, delta: item.delta, trend: item.trend, health: item.health }); setEditor('kpi', item.id); }} label="Edit KPI" /><DeleteButton onClick={() => void deleteRecord('kpi', item.id)} label="Delete KPI" /></div></td>
+                  <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setKpiForm({ code: item.code, name: item.name, actual: item.actual, target: item.target, delta: item.delta, trend: item.trend, health: item.health, direction: item.direction ?? '', tolerance: item.tolerance ?? 5 }); setEditor('kpi', item.id); }} label="Edit KPI" /><DeleteButton onClick={() => void deleteRecord('kpi', item.id)} label="Delete KPI" /></div></td>
                 </tr>
               ))}
             </tbody>
@@ -1542,7 +1546,16 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
             </div>
             <div className="form-grid two">
               <Field label="Delta"><input value={kpiForm.delta} onChange={(event) => setKpiForm({ ...kpiForm, delta: event.target.value })} required /></Field>
-              <Field label="Health"><select value={kpiForm.health} onChange={(event) => setKpiForm({ ...kpiForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
+              <Field label="Health">{(() => {
+                const computed = computeKpiHealth(kpiForm.actual, kpiForm.target, kpiForm.direction, kpiForm.tolerance);
+                return computed
+                  ? <input value={`${computed} (calculated)`} readOnly title="Calculated from actual vs target by the health rule" />
+                  : <select value={kpiForm.health} onChange={(event) => setKpiForm({ ...kpiForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select>;
+              })()}</Field>
+            </div>
+            <div className="form-grid two">
+              <Field label="Health rule"><select value={kpiForm.direction} onChange={(event) => setKpiForm({ ...kpiForm, direction: event.target.value as KpiDirection })}><option value="">Set by hand</option><option value="higher">Higher is better</option><option value="lower">Lower is better</option></select></Field>
+              <Field label="Amber band (% of target)"><input type="number" min={0} max={100} value={kpiForm.tolerance} onChange={(event) => setKpiForm({ ...kpiForm, tolerance: Number(event.target.value) || 0 })} disabled={!kpiForm.direction} /></Field>
             </div>
             <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.kpi ? 'Save KPI' : 'Add KPI'}</button>
             {editing.kpi ? <button className="ghost-btn" type="button" onClick={() => { setKpiForm(defaultKpiForm); setEditor('kpi', null); }}>Cancel edit</button> : null}
@@ -2325,6 +2338,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
           </div>
         </Panel>
       ),
+      sla: () => <SlaPolicySettings app={app} busy={Boolean(busy)} mutate={mutate} />,
       users: () => <UserManagementTab currentUserId={user.id} />,
       directory: () => <DirectorySettingsPanel />,
     };
@@ -2359,6 +2373,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
     processes: renderProcesses(),
     contacts: renderContacts(),
     notes: renderNotes(),
+    reports: <ReportsView app={app} user={user} busy={Boolean(busy)} mutate={mutate} />,
     advisor: renderAdvisor(),
     settings: renderSettings(),
   };

@@ -4,6 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
+const incidents = require('./incidents.cjs');
 
 const DEFAULT_CLOCK_ZONES = ['UTC', 'America/New_York'];
 
@@ -19,8 +20,10 @@ function createStore({ dbPath, env }) {
   ensureContactSchema(db);
   ensureObjectiveSchema(db);
   ensureIssueSchema(db);
+  ensureKpiRuleSchema(db);
   ensureAdvisorSchema(db);
   ensureDefaultSettings(db);
+  incidents.ensureIncidentSchema(db);
 
   function getSnapshot() {
     return {
@@ -31,27 +34,31 @@ function createStore({ dbPath, env }) {
         rosterStaff: readRosterStaff(db),
         rosterLabels: readRosterLabels(db),
         workforceChannelOrder: readWorkforceChannelOrder(db),
+        reports: incidents.readReportSettings(db),
       },
-      kpis: db.prepare('SELECT id, code, name, actual, target, health, trend, delta FROM kpis ORDER BY id').all(),
+      kpis: db.prepare('SELECT id, code, name, actual, target, health, trend, delta, direction, tolerance FROM kpis ORDER BY id').all(),
       rosterAssignments: db.prepare('SELECT id, roster_date AS rosterDate, shift_name AS shiftName, role, analyst, status, health, notes FROM roster_assignments ORDER BY roster_date, shift_name, role').all(),
       matrixTasks: db.prepare('SELECT id, task_date AS taskDate, title, lead, assignee, duration_minutes AS durationMinutes, urgency, importance, quadrant, disposition, due_time AS dueTime, status, notes, objective_id AS objectiveId FROM matrix_tasks ORDER BY task_date DESC, lead, id').all().map((row) => ({ ...row, status: normalizeMatrixStatus(row.status) })),
       objectives: db.prepare('SELECT id, scope, title, summary, owner, assigned_to AS assignedTo, due, progress, health, attachment_name AS attachmentName, attachment_path AS attachmentPath FROM objectives ORDER BY id').all(),
-      issues: db.prepare('SELECT id, scope, status, title, summary, owner, assigned_to AS assignedTo, linked_type AS linkedType, linked_id AS linkedId, due, progress, health FROM issues ORDER BY id').all().map((row) => ({ ...row, status: normalizeIssueStatus(row.status) })),
+      issues: db.prepare('SELECT id, scope, status, title, summary, owner, assigned_to AS assignedTo, linked_type AS linkedType, linked_id AS linkedId, due, progress, health, created_at AS createdAt, closed_at AS closedAt FROM issues ORDER BY id').all().map((row) => ({ ...row, status: normalizeIssueStatus(row.status) })),
       followUps: db.prepare('SELECT id, ref, title, owner, age, health FROM follow_ups ORDER BY id').all(),
       projects: db.prepare('SELECT id, code, name, owner, phase, due, progress, health FROM projects ORDER BY id').all(),
       processes: db.prepare('SELECT id, code, name, owner, cadence, maturity, health, notes, attachment_name AS attachmentName, attachment_path AS attachmentPath FROM processes ORDER BY id').all(),
       contacts: db.prepare('SELECT id, name, role, channel, email, phone, scope, is_lead AS isLead FROM contacts ORDER BY name, id').all().map((row) => ({ ...row, isLead: Boolean(row.isLead) })),
       notes: db.prepare('SELECT id, created_at AS createdAt, note_date AS noteDate, text, pinned FROM notes ORDER BY pinned DESC, note_date DESC, datetime(created_at) DESC').all().map((row) => ({ ...row, pinned: Boolean(row.pinned) })),
       advisorBriefs: db.prepare('SELECT id, created_at AS createdAt, content, source, brief_date AS briefDate FROM advisor_briefs ORDER BY datetime(created_at) DESC').all(),
+      incidents: incidents.readIncidents(db),
     };
   }
 
   function createRecord(kind, payload) {
     switch (kind) {
-      case 'kpi':
-        db.prepare('INSERT INTO kpis (code, name, actual, target, health, trend, delta) VALUES (?, ?, ?, ?, ?, ?, ?)')
-          .run(text(payload.code), text(payload.name), text(payload.actual), text(payload.target), text(payload.health, 'watch'), text(payload.trend, 'flat'), text(payload.delta));
+      case 'kpi': {
+        const rule = kpiRule(payload);
+        db.prepare('INSERT INTO kpis (code, name, actual, target, health, trend, delta, direction, tolerance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(text(payload.code), text(payload.name), text(payload.actual), text(payload.target), rule.health, text(payload.trend, 'flat'), text(payload.delta), rule.direction, rule.tolerance);
         break;
+      }
       case 'rosterAssignment':
         db.prepare('INSERT INTO roster_assignments (roster_date, shift_name, role, analyst, status, health, notes) VALUES (?, ?, ?, ?, ?, ?, ?)')
           .run(text(payload.rosterDate), text(payload.shiftName), text(payload.role), text(payload.analyst), text(payload.status, 'Planned'), text(payload.health, 'healthy'), text(payload.notes));
@@ -81,9 +88,15 @@ function createStore({ dbPath, env }) {
         db.prepare('INSERT INTO objectives (scope, title, summary, owner, assigned_to, due, progress, health) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
           .run(text(payload.scope, 'D'), text(payload.title), text(payload.summary), text(payload.owner), text(payload.assignedTo), text(payload.due), integer(payload.progress), text(payload.health, 'watch'));
         break;
-      case 'issue':
-        db.prepare('INSERT INTO issues (scope, status, title, summary, owner, assigned_to, linked_type, linked_id, due, progress, health) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-          .run(text(payload.scope, 'D'), normalizeIssueStatus(payload.status, inferIssueStatus(payload.progress)), text(payload.title), text(payload.summary), text(payload.owner), text(payload.assignedTo), text(payload.linkedType), integer(payload.linkedId), text(payload.due), integer(payload.progress), text(payload.health, 'watch'));
+      case 'issue': {
+        const status = normalizeIssueStatus(payload.status, inferIssueStatus(payload.progress));
+        const createdAt = new Date().toISOString();
+        db.prepare('INSERT INTO issues (scope, status, title, summary, owner, assigned_to, linked_type, linked_id, due, progress, health, created_at, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(text(payload.scope, 'D'), status, text(payload.title), text(payload.summary), text(payload.owner), text(payload.assignedTo), text(payload.linkedType), integer(payload.linkedId), text(payload.due), integer(payload.progress), text(payload.health, 'watch'), createdAt, status === 'Closed' ? createdAt : '');
+        break;
+      }
+      case 'incident':
+        incidents.insertIncident(db, payload);
         break;
       case 'followUp':
         db.prepare('INSERT INTO follow_ups (ref, title, owner, age, health) VALUES (?, ?, ?, ?, ?)')
@@ -125,6 +138,7 @@ function createStore({ dbPath, env }) {
       process: 'processes',
       contact: 'contacts',
       note: 'notes',
+      incident: 'incidents',
     };
     const table = tableByKind[kind];
     if (!table) {
@@ -148,10 +162,12 @@ function createStore({ dbPath, env }) {
 
   function updateRecord(kind, id, payload) {
     switch (kind) {
-      case 'kpi':
-        db.prepare('UPDATE kpis SET code = ?, name = ?, actual = ?, target = ?, health = ?, trend = ?, delta = ? WHERE id = ?')
-          .run(text(payload.code), text(payload.name), text(payload.actual), text(payload.target), text(payload.health, 'watch'), text(payload.trend, 'flat'), text(payload.delta), integer(id));
+      case 'kpi': {
+        const rule = kpiRule(payload);
+        db.prepare('UPDATE kpis SET code = ?, name = ?, actual = ?, target = ?, health = ?, trend = ?, delta = ?, direction = ?, tolerance = ? WHERE id = ?')
+          .run(text(payload.code), text(payload.name), text(payload.actual), text(payload.target), rule.health, text(payload.trend, 'flat'), text(payload.delta), rule.direction, rule.tolerance, integer(id));
         break;
+      }
       case 'rosterAssignment':
         db.prepare('UPDATE roster_assignments SET roster_date = ?, shift_name = ?, role = ?, analyst = ?, status = ?, health = ?, notes = ? WHERE id = ?')
           .run(text(payload.rosterDate), text(payload.shiftName), text(payload.role), text(payload.analyst), text(payload.status, 'Planned'), text(payload.health, 'healthy'), text(payload.notes), integer(id));
@@ -168,9 +184,17 @@ function createStore({ dbPath, env }) {
         db.prepare('UPDATE objectives SET scope = ?, title = ?, summary = ?, owner = ?, assigned_to = ?, due = ?, progress = ?, health = ? WHERE id = ?')
           .run(text(payload.scope, 'D'), text(payload.title), text(payload.summary), text(payload.owner), text(payload.assignedTo), text(payload.due), integer(payload.progress), text(payload.health, 'watch'), integer(id));
         break;
-      case 'issue':
-        db.prepare('UPDATE issues SET scope = ?, status = ?, title = ?, summary = ?, owner = ?, assigned_to = ?, linked_type = ?, linked_id = ?, due = ?, progress = ?, health = ? WHERE id = ?')
-          .run(text(payload.scope, 'D'), normalizeIssueStatus(payload.status, inferIssueStatus(payload.progress)), text(payload.title), text(payload.summary), text(payload.owner), text(payload.assignedTo), text(payload.linkedType), integer(payload.linkedId), text(payload.due), integer(payload.progress), text(payload.health, 'watch'), integer(id));
+      case 'issue': {
+        const status = normalizeIssueStatus(payload.status, inferIssueStatus(payload.progress));
+        const previous = db.prepare('SELECT status, closed_at FROM issues WHERE id = ?').get(integer(id));
+        // Record when an issue is closed (and clear it if reopened) so reports can count closures per period.
+        const closedAt = status === 'Closed' ? (previous?.status === 'Closed' && previous.closed_at ? previous.closed_at : new Date().toISOString()) : '';
+        db.prepare('UPDATE issues SET scope = ?, status = ?, title = ?, summary = ?, owner = ?, assigned_to = ?, linked_type = ?, linked_id = ?, due = ?, progress = ?, health = ?, closed_at = ? WHERE id = ?')
+          .run(text(payload.scope, 'D'), status, text(payload.title), text(payload.summary), text(payload.owner), text(payload.assignedTo), text(payload.linkedType), integer(payload.linkedId), text(payload.due), integer(payload.progress), text(payload.health, 'watch'), closedAt, integer(id));
+        break;
+      }
+      case 'incident':
+        incidents.updateIncident(db, id, payload);
         break;
       case 'followUp':
         db.prepare('UPDATE follow_ups SET ref = ?, title = ?, owner = ?, age = ?, health = ? WHERE id = ?')
@@ -585,6 +609,18 @@ function createStore({ dbPath, env }) {
     createRecord,
     deleteRecord,
     updateRecord,
+    updateReportSettings(payload) {
+      incidents.writeReportSettings(db, payload);
+      return getSnapshot();
+    },
+    importIncidentsCsv(csvText) {
+      const result = incidents.importIncidentsCsv(db, csvText);
+      return { ...result, snapshot: getSnapshot() };
+    },
+    async importIncidentsXlsx(buffer) {
+      const result = await incidents.importIncidentsXlsx(db, buffer);
+      return { ...result, snapshot: getSnapshot() };
+    },
     updateClockZones,
     updateRosterPlannerSettings,
     renameRosterStaff,
@@ -804,6 +840,8 @@ function ensureIssueSchema(db) {
   ensureColumn(db, 'issues', 'summary', "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, 'issues', 'assigned_to', "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, 'issues', 'linked_type', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'issues', 'created_at', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'issues', 'closed_at', "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, 'issues', 'linked_id', 'INTEGER NOT NULL DEFAULT 0');
   const migrationRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('issueStatusMigrationV1');
   if (!hadStatusColumn || migrationRow?.value !== 'done') {
@@ -819,6 +857,21 @@ function ensureIssueSchema(db) {
   invalidRows.forEach((row) => {
     normalize.run(inferIssueStatus(row.progress), row.id);
   });
+}
+
+function ensureKpiRuleSchema(db) {
+  // direction: '' (health set by hand), 'higher' or 'lower' is better. tolerance: amber band in % of target.
+  ensureColumn(db, 'kpis', 'direction', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'kpis', 'tolerance', 'REAL NOT NULL DEFAULT 5');
+}
+
+// When a KPI has a health rule, its health is calculated from actual vs target instead of picked by hand.
+function kpiRule(payload) {
+  const direction = ['higher', 'lower'].includes(text(payload.direction)) ? text(payload.direction) : '';
+  const parsedTolerance = Number(payload.tolerance);
+  const tolerance = Number.isFinite(parsedTolerance) ? Math.min(100, Math.max(0, parsedTolerance)) : 5;
+  const computed = incidents.computeKpiHealth(payload.actual, payload.target, direction, tolerance);
+  return { direction, tolerance, health: computed ?? text(payload.health, 'watch') };
 }
 
 function ensureAdvisorSchema(db) {

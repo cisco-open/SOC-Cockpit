@@ -27,6 +27,24 @@ npm start
 
 In production mode the Express server serves the built frontend.
 
+## Tests
+
+```bash
+npm test
+```
+
+Unit tests live in `tests/` and use the built-in Node.js test runner
+(`node --test`). TypeScript modules under `src/` are loaded with Node's type
+stripping, so they must stay free of TypeScript-only runtime syntax such as
+`enum`.
+
+## Demo data
+
+`npm run seed:demo` loads a fictional dataset into `data/soc-cockpit.sqlite`
+(analysts, a 24/7 roster, incidents, stand-up tasks, KPIs, objectives and more)
+so every module and report can be tried. It refuses to run twice unless you pass
+`-- --force`. See [docs/REPORTS.md](docs/REPORTS.md).
+
 ## Coding guidelines
 
 - Keep changes focused; avoid unrelated refactors in the same PR.

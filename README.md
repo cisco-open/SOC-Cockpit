@@ -119,6 +119,10 @@ On Windows PowerShell, use `npm.cmd` if script execution policy blocks `npm`.
 - `server/app.cjs`: Express API server and production static hosting.
 - `server/db.cjs`: SQLite schema, default settings, CRUD operations, and advisor
   brief generation.
+- `server/incidents.cjs`: incident register, SLA targets and CSV import used by
+  the Reports module.
+- `src/Reports.tsx` / `src/reportCalc.ts`: Reports module views and the report
+  calculations (see [docs/REPORTS.md](docs/REPORTS.md)).
 
 ## Commands
 
@@ -127,6 +131,8 @@ npm install
 npm run dev             # start the web app and API together
 npm run build           # type-check and build the frontend
 npm start               # serve the production build from the API server
+npm test                # run the unit tests
+npm run seed:demo       # load fictional demo data for trying every module and report
 ```
 
 ## Environment
@@ -165,7 +171,13 @@ OpenAI-compatible gateways, and self-hosted servers such as Ollama or vLLM.
   (everything plus user management).
 - A new database starts empty apart from default settings (clock zones, shift
   labels); no sample records are loaded. The screenshots above use a fictional
-  dataset.
+  dataset. Run `npm run seed:demo` to load a fictional demo dataset.
+- The **Reports** module prints monthly service, customer SLA (MTTD / MTTA /
+  MTTR), workforce, stand-up and shift-handover reports to PDF. SLA figures come
+  from the incident register (Excel / CSV upload of MTTD, MTTA and MTTR per
+  ticket, or manual entry), measured against standard or customer-specific SLAs
+  set in Settings → SLA & KPI policies. See
+  [docs/REPORTS.md](docs/REPORTS.md).
 - The API is the source of truth for all editable modules.
 - Production mode serves the built frontend from the Express server.
 - `data/`, `uploads/`, and `artifacts/` hold local runtime data and are

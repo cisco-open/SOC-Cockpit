@@ -11,6 +11,7 @@ const multer = require('multer');
 const { createStore } = require('./db.cjs');
 const { createAuth } = require('./auth.cjs');
 const { buildStandupTemplate, parseStandupWorkbook } = require('./standup-xlsx.cjs');
+const { CSV_TEMPLATE: INCIDENT_CSV_TEMPLATE, buildIncidentTemplateXlsx } = require('./incidents.cjs');
 
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
@@ -123,6 +124,11 @@ const objectiveUpload = createUpload(objectiveUploadsPath);
 const workbookUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+const incidentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
 });
 
 app.use(helmet({
@@ -250,6 +256,54 @@ app.post('/api/process/:id/document', processUpload.single('document'), (req, re
     if (req.file?.path && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
+    next(error);
+  }
+});
+
+app.post('/api/settings/reports', auth.requireRole('Admin'), (req, res, next) => {
+  try {
+    res.json(store.updateReportSettings(req.body));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/incidents/template', async (req, res, next) => {
+  try {
+    if (req.query.format === 'csv') {
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="soc-incidents-template.csv"');
+      res.send(`\uFEFF${INCIDENT_CSV_TEMPLATE}\r\n`);
+      return;
+    }
+    const buffer = await buildIncidentTemplateXlsx();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="soc-incidents-template.xlsx"');
+    res.send(buffer);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/incidents/import', incidentUpload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      throw new HttpError(400, 'No file uploaded.');
+    }
+    const extension = path.extname(req.file.originalname || '').toLowerCase();
+    if (extension === '.xlsx') {
+      if (!req.file.buffer.subarray(0, 4).equals(ZIP_SIGNATURE)) {
+        throw new HttpError(400, 'File content does not match its .xlsx extension.');
+      }
+      res.json(await store.importIncidentsXlsx(req.file.buffer));
+      return;
+    }
+    if (extension === '.csv') {
+      res.json(store.importIncidentsCsv(req.file.buffer.toString('utf8')));
+      return;
+    }
+    throw new HttpError(400, 'Upload an Excel workbook (.xlsx) or a .csv file. Older .xls files: open in Excel and Save As .xlsx.');
+  } catch (error) {
     next(error);
   }
 });
