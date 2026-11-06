@@ -1078,6 +1078,14 @@ const AUDIT_LABELS: Record<string, string> = {
 
 function describeAudit(entry: IncidentAuditEntry): string {
   const details = entry.details ?? {};
+  if (details.truncated) {
+    // Large changes are stored as a summary of what changed rather than the full before/after values.
+    if (details.unreadable) return 'Details not available (recorded by an older version)';
+    const keys = Array.isArray(details.keys) ? (details.keys as string[]) : [];
+    const count = Number(details.keyCount) || keys.length;
+    const shown = keys.slice(0, 5).join(', ');
+    return `${count} change${count === 1 ? '' : 's'} (too large to store in full)${shown ? `: ${shown}${count > 5 ? `, +${count - 5} more` : ''}` : ''}`;
+  }
   if (entry.action === 'incidents.import') {
     return `${details.added ?? 0} added, ${details.updated ?? 0} updated, ${details.skipped ?? 0} skipped`;
   }
