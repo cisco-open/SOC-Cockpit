@@ -10,7 +10,9 @@ const helmet = require('helmet');
 const multer = require('multer');
 const { createStore } = require('./db.cjs');
 const { createAuth } = require('./auth.cjs');
+const { HttpError } = require('./errors.cjs');
 const { buildStandupTemplate, parseStandupWorkbook } = require('./standup-xlsx.cjs');
+const { CSV_TEMPLATE: INCIDENT_CSV_TEMPLATE, buildIncidentTemplateXlsx } = require('./incidents.cjs');
 
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
@@ -53,12 +55,6 @@ const VIEWER_ALLOWED_WRITES = new Set(['/assistant/chat']);
 fs.mkdirSync(processUploadsPath, { recursive: true });
 fs.mkdirSync(objectiveUploadsPath, { recursive: true });
 
-class HttpError extends Error {
-  constructor(statusCode, message) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
 
 function validateDocumentUpload(_req, file, callback) {
   const extension = path.extname(file.originalname || '').toLowerCase();
@@ -123,6 +119,13 @@ const objectiveUpload = createUpload(objectiveUploadsPath);
 const workbookUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+// Same 10 MB limit as before for incident CSV / Excel uploads.
+const INCIDENT_UPLOAD_BYTES = 10 * 1024 * 1024;
+const incidentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: INCIDENT_UPLOAD_BYTES, files: 1 },
 });
 
 app.use(helmet({
@@ -254,6 +257,119 @@ app.post('/api/process/:id/document', processUpload.single('document'), (req, re
   }
 });
 
+app.post('/api/settings/reports', auth.requireRole('Admin'), (req, res, next) => {
+  try {
+    res.json(store.updateReportSettings(req.body, req.user));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/incidents/template', async (req, res, next) => {
+  try {
+    if (req.query.format === 'csv') {
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="soc-incidents-template.csv"');
+      res.send(`\uFEFF${INCIDENT_CSV_TEMPLATE}\r\n`);
+      return;
+    }
+    const buffer = await buildIncidentTemplateXlsx();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="soc-incidents-template.xlsx"');
+    res.send(buffer);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---- Incident register (feeds the SLA reports) ----
+// Every change is written to the incident audit log with the signed-in user, so SLA results
+// can be traced back to who uploaded or edited the underlying tickets.
+
+const INCIDENT_IMPORT_LIMIT = { max: 20, windowMs: 10 * 60 * 1000 };
+const incidentImportsByUser = new Map();
+
+// Per-user limit on imports: stops one account from flooding the server with uploads.
+function limitIncidentImports(req, _res, next) {
+  const now = Date.now();
+  const key = String(req.user?.id ?? req.ip);
+  const recent = (incidentImportsByUser.get(key) ?? []).filter((time) => now - time < INCIDENT_IMPORT_LIMIT.windowMs);
+  if (recent.length >= INCIDENT_IMPORT_LIMIT.max) {
+    next(new HttpError(429, 'Too many imports in a short time. Please wait a few minutes and try again.'));
+    return;
+  }
+  recent.push(now);
+  incidentImportsByUser.set(key, recent);
+  next();
+}
+
+function uploadedFileInfo(file) {
+  const name = path.basename(String(file.originalname || 'upload')).replace(/[^\w .()-]/g, '_').slice(0, 120);
+  return { name, sha256: crypto.createHash('sha256').update(file.buffer).digest('hex') };
+}
+
+// Writes under /api already require Operator or Admin (see the role middleware above); stated explicitly here too.
+app.post('/api/incidents/import', auth.requireRole('Operator', 'Admin'), limitIncidentImports, incidentUpload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      throw new HttpError(400, 'No file uploaded.');
+    }
+    const extension = path.extname(req.file.originalname || '').toLowerCase();
+    const info = uploadedFileInfo(req.file);
+    if (extension === '.xlsx') {
+      if (!req.file.buffer.subarray(0, 4).equals(ZIP_SIGNATURE)) {
+        throw new HttpError(400, 'File content does not match its .xlsx extension.');
+      }
+      res.json(await store.importIncidentsXlsx(req.file.buffer, req.user, info));
+      return;
+    }
+    if (extension === '.csv') {
+      // A CSV is plain text: NUL bytes mean a binary file was renamed to .csv.
+      if (req.file.buffer.includes(0)) {
+        throw new HttpError(400, 'File content does not look like a CSV text file.');
+      }
+      res.json(store.importIncidentsCsv(req.file.buffer.toString('utf8'), req.user, info));
+      return;
+    }
+    throw new HttpError(400, 'Upload an Excel workbook (.xlsx) or a .csv file. Older .xls files: open in Excel and Save As .xlsx.');
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/incidents/audit', auth.requireRole('Admin'), (req, res, next) => {
+  try {
+    res.json({ entries: store.readIncidentAudit(req.query.limit) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/incident', auth.requireRole('Operator', 'Admin'), (req, res, next) => {
+  try {
+    res.json(store.createIncident(req.body, req.user));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/incident/:id', auth.requireRole('Operator', 'Admin'), (req, res, next) => {
+  try {
+    res.json(store.updateIncident(req.params.id, req.body, req.user));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Deleting a ticket removes it from SLA results, so only Admins may do it (and it is logged).
+app.delete('/api/incident/:id', auth.requireRole('Admin'), (req, res, next) => {
+  try {
+    res.json(store.deleteIncident(req.params.id, req.user));
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/:kind', (req, res, next) => {
   try {
     res.json(store.createRecord(req.params.kind, req.body));
@@ -340,7 +456,8 @@ if (isProduction) {
 app.use((error, _req, res, _next) => {
   if (error instanceof multer.MulterError) {
     if (error.code === 'LIMIT_FILE_SIZE') {
-      res.status(400).json({ error: `File too large. Max size is ${MAX_DOCUMENT_UPLOAD_BYTES / (1024 * 1024)}MB.` });
+      const maxBytes = _req.path === '/api/incidents/import' ? INCIDENT_UPLOAD_BYTES : MAX_DOCUMENT_UPLOAD_BYTES;
+      res.status(400).json({ error: `File too large. Max size is ${maxBytes / (1024 * 1024)}MB.` });
       return;
     }
     res.status(400).json({ error: error.message });

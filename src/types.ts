@@ -11,7 +11,9 @@ export type ObjectiveScope = 'D' | 'W' | 'M';
 export type ContactScope = 'Staff' | 'Vendor' | 'Key';
 export type MatrixQuadrant = 'Do' | 'Delegate' | 'Delay' | 'Discard';
 export type MatrixStatus = 'Not Completed' | 'Completed';
-export type RecordKind = 'kpi' | 'rosterAssignment' | 'matrixTask' | 'objective' | 'issue' | 'followUp' | 'project' | 'process' | 'contact' | 'note';
+export type RecordKind = 'kpi' | 'rosterAssignment' | 'matrixTask' | 'objective' | 'issue' | 'followUp' | 'project' | 'process' | 'contact' | 'note' | 'incident';
+export type IncidentPriority = 'P1' | 'P2' | 'P3' | 'P4';
+export type IncidentStatus = 'Open' | 'Acknowledged' | 'Resolved' | 'Closed';
 
 export type UserRole = 'Admin' | 'Operator' | 'Viewer';
 export type UserStatus = 'active' | 'inactive';
@@ -111,7 +113,13 @@ export interface Kpi {
   health: Health;
   trend: Trend;
   delta: string;
+  /** '' = health set by hand; otherwise health is calculated from actual vs target. */
+  direction?: KpiDirection;
+  /** Amber band, as a percentage of the target. */
+  tolerance?: number;
 }
+
+export type KpiDirection = '' | 'higher' | 'lower';
 
 export interface RosterAssignment {
   id: number;
@@ -178,6 +186,8 @@ export interface IssueRow {
   due: string;
   progress: number;
   health: Health;
+  createdAt?: string;
+  closedAt?: string;
 }
 
 export interface FollowUp {
@@ -246,6 +256,58 @@ export interface AdvisorBrief {
   briefDate: string;
 }
 
+export interface IncidentRow {
+  id: number;
+  ref: string;
+  customer: string;
+  title: string;
+  priority: IncidentPriority;
+  category: string;
+  source: string;
+  status: IncidentStatus;
+  analyst: string;
+  occurredAt: string;
+  detectedAt: string;
+  acknowledgedAt: string;
+  resolvedAt: string;
+  notes: string;
+  createdAt: string;
+}
+
+export interface SlaTarget {
+  detect: number;
+  ack: number;
+  resolve: number;
+}
+
+export type SlaTargets = Record<IncidentPriority, SlaTarget>;
+
+export interface IncidentAuditEntry {
+  id: number;
+  at: string;
+  username: string;
+  role: string;
+  action: string;
+  target: string;
+  details: Record<string, unknown>;
+}
+
+export interface ComplianceThresholds {
+  /** Contracted compliance target (%): at or above is green. */
+  target: number;
+  /** At or above this (but below target) is amber; below is red. */
+  amber: number;
+}
+
+export interface ReportSettings {
+  orgName: string;
+  weekendDays: number[];
+  slaTargets: SlaTargets;
+  compliance: ComplianceThresholds;
+  /** Per-customer SLA overrides keyed by customer name. */
+  customerSla: Record<string, SlaTargets>;
+}
+
 export interface AppSettings {
   extraClockZones: string[];
   llmConfigured: boolean;
@@ -253,6 +315,7 @@ export interface AppSettings {
   rosterStaff: string[];
   rosterLabels: RosterLabel[];
   workforceChannelOrder: string[];
+  reports?: ReportSettings;
 }
 
 export interface AppSnapshot {
@@ -268,4 +331,5 @@ export interface AppSnapshot {
   contacts: ContactRow[];
   notes: NoteRow[];
   advisorBriefs: AdvisorBrief[];
+  incidents?: IncidentRow[];
 }

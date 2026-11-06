@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   BriefcaseBusiness,
   ClipboardCheck,
+  FileBarChart,
   Contact,
   Gauge,
   LayoutDashboard,
@@ -38,6 +39,7 @@ export const navItems: NavItem[] = [
   { key: 'projects', label: 'Projects', icon: BriefcaseBusiness },
   { key: 'processes', label: 'Process', icon: Workflow },
   { key: 'notes', label: 'Notes', icon: NotebookPen },
+  { key: 'reports', label: 'Reports', icon: FileBarChart },
   { key: 'advisor', label: 'Executive Update', icon: Radio },
   { key: 'settings', label: 'Settings', icon: Settings },
 ];

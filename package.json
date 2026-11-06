@@ -12,6 +12,8 @@
     "dev": "concurrently \"npm:dev:web\" \"npm:dev:api\"",
     "dev:web": "vite --host 127.0.0.1",
     "dev:api": "node server/app.cjs",
+    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test tests/*.test.*",
+    "seed:demo": "node scripts/seed-demo-data.cjs",
     "export:handover": "node scripts/export-handover.cjs",
     "build": "tsc -b && vite build",
     "start": "cross-env NODE_ENV=production node server/app.cjs",
