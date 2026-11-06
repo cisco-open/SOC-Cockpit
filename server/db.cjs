@@ -609,17 +609,48 @@ function createStore({ dbPath, env }) {
     createRecord,
     deleteRecord,
     updateRecord,
-    updateReportSettings(payload) {
-      incidents.writeReportSettings(db, payload);
+    // `user` (optional) is the signed-in user; when given, the change is written to the incident audit log.
+    updateReportSettings(payload, user) {
+      const before = incidents.readReportSettings(db);
+      const after = incidents.writeReportSettings(db, payload);
+      const changes = incidents.settingsChanges(before, after);
+      if (user && Object.keys(changes).length) incidents.writeAudit(db, user, 'sla-settings.update', 'SLA & KPI policies', changes);
       return getSnapshot();
     },
-    importIncidentsCsv(csvText) {
+    importIncidentsCsv(csvText, user, file) {
       const result = incidents.importIncidentsCsv(db, csvText);
+      if (user) incidents.writeAudit(db, user, 'incidents.import', file?.name ?? 'CSV', { format: 'csv', sha256: file?.sha256, added: result.added, updated: result.updated, skipped: result.skipped });
       return { ...result, snapshot: getSnapshot() };
     },
-    async importIncidentsXlsx(buffer) {
+    async importIncidentsXlsx(buffer, user, file) {
       const result = await incidents.importIncidentsXlsx(db, buffer);
+      if (user) incidents.writeAudit(db, user, 'incidents.import', file?.name ?? 'Excel', { format: 'xlsx', sha256: file?.sha256, added: result.added, updated: result.updated, skipped: result.skipped });
       return { ...result, snapshot: getSnapshot() };
+    },
+    createIncident(payload, user) {
+      const snapshot = createRecord('incident', payload);
+      const created = snapshot.incidents.reduce((latest, item) => (item.id > (latest?.id ?? 0) ? item : latest), null);
+      incidents.writeAudit(db, user, 'incident.create', created?.ref || `#${created?.id}`, { id: created?.id, ...incidents.incidentChanges({}, created) });
+      return snapshot;
+    },
+    updateIncident(id, payload, user) {
+      const before = incidents.getIncident(db, id);
+      if (!before) throw Object.assign(new Error('Incident not found.'), { statusCode: 404 });
+      const snapshot = updateRecord('incident', id, payload);
+      const after = incidents.getIncident(db, id);
+      const changes = incidents.incidentChanges(before, after);
+      incidents.writeAudit(db, user, 'incident.update', after.ref || `#${after.id}`, { id: after.id, ...changes });
+      return snapshot;
+    },
+    deleteIncident(id, user) {
+      const before = incidents.getIncident(db, id);
+      if (!before) throw Object.assign(new Error('Incident not found.'), { statusCode: 404 });
+      const snapshot = deleteRecord('incident', id);
+      incidents.writeAudit(db, user, 'incident.delete', before.ref || `#${before.id}`, { id: before.id, ...incidents.incidentChanges(before, {}) });
+      return snapshot;
+    },
+    readIncidentAudit(limit) {
+      return incidents.readAudit(db, limit);
     },
     updateClockZones,
     updateRosterPlannerSettings,

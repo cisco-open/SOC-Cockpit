@@ -44,6 +44,11 @@ work too (CSV or Excel). Recognised column names (case-insensitive):
 | Status, Analyst, Category, Notes | status/state · analyst/owner/assignee · category/type · notes/comments |
 
 Dates may be `2026-11-05 14:30`, ISO 8601, `05/11/2026 14:30` (day first) or real Excel dates.
+Free-form dates such as "Nov 5 2026" are rejected rather than guessed. Status must be Open,
+Acknowledged, Resolved or Closed (common synonyms such as *In Progress* or *Done* are mapped).
+
+A ready-made file with ~300 fictional tickets (August–October 2026, Sample Customer 1–3) is in
+[`docs/samples/sample-incidents.csv`](samples/sample-incidents.csv) for trying the upload.
 
 ## SLA & KPI policies (Settings, Admin only)
 
@@ -77,6 +82,17 @@ Issues now record when they were opened and closed, so the monthly report can co
 them per period. Issues created before this change show in the "open now" list but are
 not counted as opened/closed in a period.
 
+## Security controls
+
+| Control | What it does |
+|---|---|
+| Roles | Viewers can read reports only. Operators and Admins can add, edit and import incidents. **Deleting an incident is Admin only**, because it removes the ticket from SLA results. SLA & KPI policies are Admin only. |
+| Change history | Every incident create / edit / delete, every import (file name, SHA-256 of the file, counts) and every SLA policy change is recorded with the user and time. Edits keep the before and after values of the SLA-relevant fields (priority, customer, status, timestamps). Admins see it in Reports → Incident register → Change history (`GET /api/incidents/audit`). |
+| Upload checks | `.xlsx` must be a real zip workbook; the archive is inspected before unpacking and files that would expand to an unsafe size (decompression bombs) are rejected. `.csv` must be text. Upload size limit 10 MB; there is no limit on the number of rows. |
+| Import rate limit | At most 20 imports per user in 10 minutes (HTTP 429 after that). |
+| Input validation | Unknown statuses and ambiguous dates are rejected, timestamps must be in order, ticket numbers / customer names longer than 120 characters are rejected and long text is shortened with a warning. Customer names such as `__proto__` are ignored in SLA settings. Error messages quote input only in a short, sanitised form. |
+| Data handling | All queries are parameterised; imported text is displayed as text (never as HTML). |
+
 ## Demo data for testing
 
 To try every module and report with realistic, fictional data:
@@ -84,8 +100,8 @@ To try every module and report with realistic, fictional data:
 - From the source folder: `npm run seed:demo` (stop nothing; press **Reload** afterwards)
 - From a portable package: double-click **Load demo data.cmd** (Windows) or run `./load-demo-data.sh` (Linux)
 
-It adds 8 analysts, a 24/7 shift roster (with leave and sick days) for the previous
-month, this month and the next 14 days, ~180 incidents across three demo customers,
-stand-up tasks, KPIs, objectives, projects, processes, issues, follow-ups, notes and two
-executive updates. Running it again is refused unless you add `--force`.
+It adds 8 analysts, a 24/7 shift roster (with leave and sick days) for the last three
+months, this month and the next 14 days, ~500 incidents across Sample Customer 1–3,
+stand-up tasks, KPIs, objectives, projects, processes, issues, follow-ups, notes and an
+executive update for each month. Phone numbers are all zeros. Running it again is refused unless you add `--force`.
 Use it on a test copy — the demo records are mixed in with any real data.

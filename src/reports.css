@@ -349,6 +349,13 @@
   .report-register { grid-template-columns: 1fr; }
 }
 
+/* ---------- incident change history ---------- */
+
+.audit-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: 360px; overflow: auto; }
+.audit-list li { border-left: 3px solid var(--line); padding-left: 8px; }
+.audit-head { font-size: 12px; }
+.audit-detail { font-size: 11px; color: var(--ink); word-break: break-word; }
+
 /* ---------- Settings → SLA & KPI policies ---------- */
 
 .sla-policies { display: grid; gap: 12px; max-width: 980px; }

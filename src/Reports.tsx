@@ -9,7 +9,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Download, FileText, Pencil, Plus, Printer, Save, Trash2, Upload } from 'lucide-react';
 import { api } from './api';
-import type { AppSnapshot, AuthUser, Health, IncidentPriority, IncidentRow, IncidentStatus, ReportSettings } from './types';
+import type { AppSnapshot, AuthUser, Health, IncidentAuditEntry, IncidentPriority, IncidentRow, IncidentStatus, ReportSettings } from './types';
 import {
   PRIORITIES,
   buildHandoverReport,
@@ -144,7 +144,7 @@ export function ReportsView({ app, user, busy, mutate }: { app: AppSnapshot; use
       ) : null}
 
       {documentNode ? <div className="report-paper-shell">{documentNode}</div> : null}
-      {tab === 'incidents' ? <IncidentRegister app={app} canEdit={canEdit} busy={busy} mutate={mutate} /> : null}
+      {tab === 'incidents' ? <IncidentRegister app={app} canEdit={canEdit} isAdmin={user.role === 'Admin'} busy={busy} mutate={mutate} /> : null}
 
       {printing && documentNode ? createPortal(<div className="report-print-portal">{documentNode}</div>, document.body) : null}
     </div>
@@ -888,7 +888,7 @@ const emptyIncident = (): IncidentForm => ({
   acknowledgedAt: '', resolvedAt: '', notes: '',
 });
 
-function IncidentRegister({ app, canEdit, busy, mutate }: { app: AppSnapshot; canEdit: boolean; busy: boolean; mutate: Mutate }) {
+function IncidentRegister({ app, canEdit, isAdmin, busy, mutate }: { app: AppSnapshot; canEdit: boolean; isAdmin: boolean; busy: boolean; mutate: Mutate }) {
   const [form, setForm] = useState<IncidentForm>(emptyIncident);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [filter, setFilter] = useState({ customer: '', status: '', search: '' });
@@ -933,7 +933,7 @@ function IncidentRegister({ app, canEdit, busy, mutate }: { app: AppSnapshot; ca
     await mutate('import-incidents', async () => {
       const result = await api.importIncidents(file);
       setImportResult(`Imported ${result.added} new and updated ${result.updated} existing incident(s)${result.skipped ? `; ${result.skipped} row(s) skipped` : ''}.`);
-      setImportErrors(result.errors);
+      setImportErrors([...result.errors, ...(result.warnings ?? []).map((warning) => `Note – ${warning}`)]);
       return result.snapshot;
     });
   }
@@ -988,7 +988,7 @@ function IncidentRegister({ app, canEdit, busy, mutate }: { app: AppSnapshot; ca
                           <td className="ta-r">
                             <div className="action-row">
                               <button type="button" className="icon-btn" onClick={() => edit(item)} title="Edit incident" aria-label="Edit incident"><Pencil size={14} /></button>
-                              <button type="button" className="icon-btn" onClick={() => { if (window.confirm(`Delete incident ${item.ref || item.id}?`)) void mutate(`delete-incident-${item.id}`, () => api.deleteRecord('incident', item.id)); }} title="Delete incident" aria-label="Delete incident"><Trash2 size={14} /></button>
+                              {isAdmin ? <button type="button" className="icon-btn" onClick={() => { if (window.confirm(`Delete incident ${item.ref || item.id}? It will no longer count in SLA reports. The deletion is logged.`)) void mutate(`delete-incident-${item.id}`, () => api.deleteRecord('incident', item.id)); }} title="Delete incident (Admin only, logged)" aria-label="Delete incident"><Trash2 size={14} /></button> : null}
                             </div>
                           </td>
                         ) : null}
@@ -1057,9 +1057,74 @@ function IncidentRegister({ app, canEdit, busy, mutate }: { app: AppSnapshot; ca
               {importErrors.length ? <ul className="report-import-errors">{importErrors.map((error) => <li key={error}>{error}</li>)}</ul> : null}
             </div>
           </section>
+          {isAdmin ? <IncidentHistory refreshKey={incidents.length + (app.settings.reports ? JSON.stringify(app.settings.reports).length : 0)} /> : null}
         </aside>
       ) : null}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Change history (Admin): who changed incident data or SLA policies, and when
+// ---------------------------------------------------------------------------
+
+const AUDIT_LABELS: Record<string, string> = {
+  'incident.create': 'Added incident',
+  'incident.update': 'Edited incident',
+  'incident.delete': 'Deleted incident',
+  'incidents.import': 'Imported file',
+  'sla-settings.update': 'Changed SLA policies',
+};
+
+function describeAudit(entry: IncidentAuditEntry): string {
+  const details = entry.details ?? {};
+  if (entry.action === 'incidents.import') {
+    return `${details.added ?? 0} added, ${details.updated ?? 0} updated, ${details.skipped ?? 0} skipped`;
+  }
+  const fields = Object.keys(details).filter((key) => key !== 'id' && key !== 'format' && key !== 'sha256');
+  if (entry.action === 'incident.update') {
+    return fields.length ? fields.map((key) => {
+      const pair = details[key] as [string, string];
+      return `${key}: ${pair?.[0] || '—'} → ${pair?.[1] || '—'}`;
+    }).join('; ') : 'no SLA-relevant change';
+  }
+  if (entry.action === 'sla-settings.update') return fields.join(', ');
+  return '';
+}
+
+function IncidentHistory({ refreshKey }: { refreshKey: number }) {
+  const [entries, setEntries] = useState<IncidentAuditEntry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    api.getIncidentAudit(200)
+      .then((result) => { if (active) { setEntries(result.entries); setError(null); } })
+      .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : 'Could not load the change history.'); });
+    return () => { active = false; };
+  }, [refreshKey]);
+
+  return (
+    <section className="panel">
+      <header className="panel-head"><h2>Change history</h2><div className="panel-meta"><span className="muted">Admin only</span></div></header>
+      <div className="panel-body">
+        {error ? <p className="report-import-errors">{error}</p> : null}
+        {entries && !entries.length ? <p className="muted small">No changes recorded yet.</p> : null}
+        {entries && entries.length ? (
+          <ul className="audit-list">
+            {entries.slice(0, 50).map((entry) => (
+              <li key={entry.id}>
+                <div className="audit-head">
+                  <strong>{AUDIT_LABELS[entry.action] ?? entry.action}</strong>
+                  <span className="muted"> · {entry.target}</span>
+                </div>
+                <div className="muted small">{new Date(entry.at).toLocaleString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · {entry.username || 'system'}{entry.role ? ` (${entry.role})` : ''}</div>
+                {describeAudit(entry) ? <div className="audit-detail">{describeAudit(entry)}</div> : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </section>
   );
 }
 

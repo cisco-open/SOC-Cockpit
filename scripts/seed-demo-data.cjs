@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Loads a realistic, fictional demo dataset so every module and report has data.
 //
-// Covers the previous full month and the current month up to today, plus the
+// Covers the last three full months and the current month up to today, plus the
 // roster for the next 14 days, so the reports work whenever this is run.
-// All people, customers and tickets are invented.
+// All people, customers and tickets are invented; phone numbers are all zeros.
 //
 // Usage:
 //   npm run seed:demo             add demo data (refuses if it was already loaded)
@@ -47,7 +47,8 @@ const addMinutes = (date, minutes) => new Date(date.getTime() + minutes * 60000)
 
 const now = new Date();
 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-const start = new Date(today.getFullYear(), today.getMonth() - 1, 1); // first day of previous month
+const MONTHS_OF_HISTORY = 3;
+const start = new Date(today.getFullYear(), today.getMonth() - MONTHS_OF_HISTORY, 1); // first day, three months back
 const rosterEnd = addDays(today, 14);
 const WEEKEND = new Set([5, 6]); // Friday + Saturday (KSA)
 const isWeekend = (date) => WEEKEND.has(date.getDay());
@@ -82,9 +83,9 @@ const LABELS = [
 const labelByCode = new Map(LABELS.map((label) => [label.code, label]));
 
 const CUSTOMERS = [
-  { name: 'Riyadh Bank (demo)', weight: 5 },
-  { name: 'Gulf Telecom (demo)', weight: 4 },
-  { name: 'Najd Health (demo)', weight: 3 },
+  { name: 'Sample Customer 1', weight: 5 },
+  { name: 'Sample Customer 2', weight: 4 },
+  { name: 'Sample Customer 3', weight: 3 },
 ];
 
 const INCIDENT_TYPES = [
@@ -128,7 +129,7 @@ async function main() {
     compliance: { target: 95, amber: 85 },
     // One customer with a stricter contract than the standard targets.
     customerSla: {
-      'Riyadh Bank (demo)': {
+      'Sample Customer 1': {
         P1: { detect: 10, ack: 10, resolve: 180 },
         P2: { detect: 20, ack: 20, resolve: 360 },
       },
@@ -138,10 +139,10 @@ async function main() {
   // Directory (also adds staff to the roster planner)
   for (const person of ANALYSTS) {
     const local = person.name.split(' ')[0].toLowerCase();
-    store.createRecord('contact', { name: person.name, role: person.role, channel: person.channel, email: `${local}@soc-demo.example`, phone: `+9665${between(10000000, 99999999)}`, scope: 'Staff', isLead: Boolean(person.lead) });
+    store.createRecord('contact', { name: person.name, role: person.role, channel: person.channel, email: `${local}@soc-demo.example`, phone: '+000000000000', scope: 'Staff', isLead: Boolean(person.lead) });
   }
-  store.createRecord('contact', { name: 'Vendor Support – EDR (demo)', role: 'Vendor TAM', channel: 'Vendor', email: 'support@edr-vendor.example', phone: '+966112345678', scope: 'Vendor', isLead: false });
-  store.createRecord('contact', { name: 'CISO Office (demo)', role: 'Escalation', channel: 'Management', email: 'ciso@soc-demo.example', phone: '+966113334444', scope: 'Key', isLead: false });
+  store.createRecord('contact', { name: 'Vendor Support – EDR (demo)', role: 'Vendor TAM', channel: 'Vendor', email: 'support@edr-vendor.example', phone: '+000000000000', scope: 'Vendor', isLead: false });
+  store.createRecord('contact', { name: 'CISO Office (demo)', role: 'Escalation', channel: 'Management', email: 'ciso@soc-demo.example', phone: '+000000000000', scope: 'Key', isLead: false });
 
   const snapshotAfterContacts = store.getSnapshot();
   const staff = [...new Set([...(snapshotAfterContacts.settings.rosterStaff ?? []), ...ANALYSTS.map((a) => a.name)])];
@@ -151,9 +152,12 @@ async function main() {
   const rotation = ['FS', 'FS', 'SS', 'SS', 'NS', 'NS', 'DO', 'DO'];
   const changes = [];
   const leaveBlock = { analyst: 'Noura Al-Shehri', from: addDays(start, 9), to: addDays(start, 13) };
+  const leaveBlock2 = { analyst: 'Ahmed Al-Qahtani', from: addDays(start, 52), to: addDays(start, 58) };
   const sickDays = [
     { analyst: 'Omar Al-Zahrani', date: addDays(start, 17) },
     { analyst: 'Omar Al-Zahrani', date: addDays(start, 18) },
+    { analyst: 'Lina Al-Dossary', date: addDays(start, 44) },
+    { analyst: 'Sara Al-Harbi', date: addDays(start, 71) },
     { analyst: 'Faisal Al-Otaibi', date: addDays(today, -3) },
   ];
   const engineerLeave = { analyst: 'Reem Al-Ghamdi', from: addDays(today, -8), to: addDays(today, -6) };
@@ -163,7 +167,7 @@ async function main() {
       if (person.channel === 'TM') code = rotation[(index + personIndex * 2) % rotation.length];
       else code = isWeekend(date) ? 'DO' : 'GS';
       const within = (block) => block.analyst === person.name && date >= block.from && date <= block.to;
-      if (within(leaveBlock) || within(engineerLeave)) code = isWeekend(date) && person.channel !== 'TM' ? 'DO' : 'PL';
+      if (within(leaveBlock) || within(leaveBlock2) || within(engineerLeave)) code = isWeekend(date) && person.channel !== 'TM' ? 'DO' : 'PL';
       if (sickDays.some((sick) => sick.analyst === person.name && dayKey(sick.date) === dayKey(date))) code = 'SCK';
       const label = labelByCode.get(code);
       changes.push({ analyst: person.name, rosterDate: dayKey(date), code, label: label.label, hours: label.hours, status: label.status, health: label.health });
@@ -314,7 +318,11 @@ async function main() {
   const quietError = console.error;
   console.error = () => {};
   try {
-    for (const date of [addDays(new Date(today.getFullYear(), today.getMonth(), 1), -1), today]) {
+    // One executive update at the end of each past month, plus today.
+    const briefDates = [];
+    for (let back = MONTHS_OF_HISTORY - 1; back >= 0; back -= 1) briefDates.push(addDays(new Date(today.getFullYear(), today.getMonth() - back, 1), -1));
+    briefDates.push(today);
+    for (const date of briefDates) {
       await store.generateAdvisorBrief(dayKey(date));
     }
   } finally {

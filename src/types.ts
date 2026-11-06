@@ -282,6 +282,16 @@ export interface SlaTarget {
 
 export type SlaTargets = Record<IncidentPriority, SlaTarget>;
 
+export interface IncidentAuditEntry {
+  id: number;
+  at: string;
+  username: string;
+  role: string;
+  action: string;
+  target: string;
+  details: Record<string, unknown>;
+}
+
 export interface ComplianceThresholds {
   /** Contracted compliance target (%): at or above is green. */
   target: number;

@@ -43,7 +43,15 @@ export function reportSettingsOf(app: AppSnapshot): ReportSettings {
 
 /** SLA targets for a customer: its override when one exists, otherwise the defaults. */
 export function targetsFor(settings: ReportSettings, customer: string): SlaTargets {
-  return (customer && settings.customerSla?.[customer]) || settings.slaTargets;
+  const key = customerSlaKey(settings, customer);
+  return key ? settings.customerSla[key] : settings.slaTargets;
+}
+
+/** The customer-specific SLA key matching a customer name (case-insensitive), or ''. */
+export function customerSlaKey(settings: ReportSettings, customer: string): string {
+  const wanted = (customer || '').trim().toLowerCase();
+  if (!wanted) return '';
+  return Object.keys(settings.customerSla ?? {}).find((key) => key.toLowerCase() === wanted) ?? '';
 }
 
 export type Tone = Health | 'neutral';
@@ -335,8 +343,8 @@ export function buildSlaReport(app: AppSnapshot, period: Period, customer: strin
     byCategory: [...categoryCounts.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
     customers: customersOf(app),
     targets: targetsFor(settings, customer),
-    customTargets: Boolean(customer && settings.customerSla?.[customer]),
-    overrideCustomers: [...new Set(measured.map((m) => m.incident.customer))].filter((name) => Boolean(settings.customerSla?.[name])).sort(),
+    customTargets: Boolean(customerSlaKey(settings, customer)),
+    overrideCustomers: [...new Set(measured.map((m) => m.incident.customer))].filter((name) => Boolean(customerSlaKey(settings, name))).sort(),
     meetsContract: overallCompliance === null ? null : overallCompliance >= settings.compliance.target,
   };
 }

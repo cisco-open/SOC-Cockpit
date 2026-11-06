@@ -9,6 +9,8 @@
 // convention the rest of the cockpit uses for dates.
 'use strict';
 
+const { HttpError } = require('./errors.cjs');
+
 const PRIORITIES = ['P1', 'P2', 'P3', 'P4'];
 const INCIDENT_STATUSES = ['Open', 'Acknowledged', 'Resolved', 'Closed'];
 
@@ -35,6 +37,13 @@ const DEFAULT_REPORT_SETTINGS = {
 };
 
 const MAX_CUSTOMER_OVERRIDES = 200;
+const RESERVED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/** User-supplied text quoted inside an error message: control characters removed, kept short. */
+function quoted(value) {
+  const text = clean(value).replace(/[\u0000-\u001f\u007f]/g, ' ');
+  return text.length > 60 ? `${text.slice(0, 57)}...` : text;
+}
 
 function ensureIncidentSchema(db) {
   db.exec(`
@@ -56,6 +65,17 @@ function ensureIncidentSchema(db) {
       created_at TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS idx_incidents_detected ON incidents (detected_at);
+    -- Append-only change history for incident data and SLA policies (who changed what, when).
+    CREATE TABLE IF NOT EXISTS incident_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      at TEXT NOT NULL,
+      username TEXT NOT NULL DEFAULT '',
+      role TEXT NOT NULL DEFAULT '',
+      action TEXT NOT NULL,
+      target TEXT NOT NULL DEFAULT '',
+      details TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_incident_audit_at ON incident_audit (at);
   `);
   db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('reportSettings', JSON.stringify(DEFAULT_REPORT_SETTINGS));
 }
@@ -122,14 +142,23 @@ function normalizeReportSettings(value) {
   const entries = value?.customerSla && typeof value.customerSla === 'object' ? Object.entries(value.customerSla) : [];
   for (const [name, targets] of entries.slice(0, MAX_CUSTOMER_OVERRIDES)) {
     const customer = clean(name).slice(0, 120);
-    if (customer) customerSla[customer] = normalizeTargets(targets, slaTargets);
+    // Object keys like "__proto__" would alter the settings object itself instead of naming a customer.
+    if (customer && !RESERVED_KEYS.has(customer.toLowerCase())) customerSla[customer] = normalizeTargets(targets, slaTargets);
   }
   return { orgName, weekendDays, slaTargets, compliance: { target, amber }, customerSla };
 }
 
 /** SLA targets that apply to a customer: its override if one exists, otherwise the defaults. */
 function targetsForCustomer(settings, customer) {
-  return (customer && settings.customerSla?.[customer]) || settings.slaTargets;
+  const key = findCustomerKey(settings.customerSla, customer);
+  return key ? settings.customerSla[key] : settings.slaTargets;
+}
+
+/** Case-insensitive lookup of a customer name among object keys. */
+function findCustomerKey(map, customer) {
+  const wanted = clean(customer).toLowerCase();
+  if (!wanted || !map) return '';
+  return Object.keys(map).find((key) => key.toLowerCase() === wanted) || '';
 }
 
 // ---- KPI health rules ----
@@ -188,22 +217,35 @@ function normalizePriority(value) {
   return named[source] || 'P3';
 }
 
+const STATUS_SYNONYMS = {
+  Closed: ['closed', 'close', 'done', 'complete', 'completed'],
+  Resolved: ['resolved', 'fixed', 'mitigated', 'contained'],
+  Acknowledged: ['acknowledged', 'ack', 'in progress', 'in-progress', 'investigating', 'assigned', 'work in progress', 'wip'],
+  Open: ['open', 'new', 'opened', 'pending'],
+};
+
+/**
+ * Status must be one of INCIDENT_STATUSES or a common synonym (e.g. "In Progress", "Done").
+ * Anything else is rejected rather than guessed. An empty status is worked out from the timestamps.
+ */
 function normalizeStatus(value, row) {
   const source = clean(value).toLowerCase();
-  const match = INCIDENT_STATUSES.find((status) => status.toLowerCase() === source);
-  if (match) return match;
-  if (['closed', 'done', 'complete', 'completed'].includes(source)) return 'Closed';
-  if (['resolved', 'fixed', 'mitigated', 'contained'].includes(source)) return 'Resolved';
-  if (['ack', 'acknowledged', 'in progress', 'investigating', 'assigned'].includes(source)) return 'Acknowledged';
-  if (row?.resolvedAt) return 'Resolved';
-  if (row?.acknowledgedAt) return 'Acknowledged';
-  return 'Open';
+  if (!source) {
+    if (row?.resolvedAt) return 'Resolved';
+    if (row?.acknowledgedAt) return 'Acknowledged';
+    return 'Open';
+  }
+  for (const [status, synonyms] of Object.entries(STATUS_SYNONYMS)) {
+    if (synonyms.includes(source)) return status;
+  }
+  throw new HttpError(400, `Status "${quoted(value)}" is not recognised. Use ${INCIDENT_STATUSES.join(', ')}.`);
 }
 
 const pad = (value) => String(value).padStart(2, '0');
 
-// Accepts ISO strings, "YYYY-MM-DD HH:MM[:SS]", "DD/MM/YYYY HH:MM" and Excel-style
-// "MM/DD/YYYY" only when the day part is > 12. Returns local "YYYY-MM-DDTHH:MM" or ''.
+// Accepts only explicit formats: ISO 8601 (with or without offset), "YYYY-MM-DD HH:MM[:SS]",
+// "DD/MM/YYYY HH:MM" (day first; month first only when the day part is > 12) and real
+// Excel dates (converted before they reach here). Returns local "YYYY-MM-DDTHH:MM" or ''.
 function normalizeTimestamp(value) {
   const source = clean(value);
   if (!source) return '';
@@ -233,56 +275,143 @@ function normalizeTimestamp(value) {
     if (month < 1 || month > 12 || day < 1 || day > 31) return '';
     return `${match[3]}-${pad(month)}-${pad(day)}T${pad(hour)}:${match[5] ?? '00'}`;
   }
-  const parsed = new Date(source);
-  return Number.isNaN(parsed.getTime()) ? '' : toLocalStamp(parsed);
+  // No free-form fallback: formats such as "Nov 5 2026" are ambiguous and parse differently by time zone.
+  return '';
 }
 
 function toLocalStamp(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function normalizeIncident(payload) {
-  const row = {
-    ref: clean(payload.ref).slice(0, 80),
-    customer: clean(payload.customer).slice(0, 120),
-    title: clean(payload.title).slice(0, 300),
-    priority: normalizePriority(payload.priority),
-    category: clean(payload.category).slice(0, 120),
-    source: clean(payload.source).slice(0, 120),
-    analyst: clean(payload.analyst).slice(0, 120),
-    occurredAt: normalizeTimestamp(payload.occurredAt),
-    detectedAt: normalizeTimestamp(payload.detectedAt),
-    acknowledgedAt: normalizeTimestamp(payload.acknowledgedAt),
-    resolvedAt: normalizeTimestamp(payload.resolvedAt),
-    notes: clean(payload.notes).slice(0, 4000),
-  };
-  row.status = normalizeStatus(payload.status, row);
-  if (!row.title && row.ref) row.title = `Ticket ${row.ref}`;
-  if (!row.title) throw httpError(400, 'Incident title (or a ticket number) is required.');
-  if (!row.detectedAt) throw httpError(400, 'Incident detected time is required.');
-  if (row.occurredAt && row.occurredAt > row.detectedAt) throw httpError(400, 'Occurred time cannot be after detected time.');
-  if (row.acknowledgedAt && row.acknowledgedAt < row.detectedAt) throw httpError(400, 'Acknowledged time cannot be before detected time.');
-  if (row.resolvedAt && row.resolvedAt < row.detectedAt) throw httpError(400, 'Resolved time cannot be before detected time.');
-  return row;
+// Identifiers are rejected when too long (cutting them could merge different tickets);
+// descriptive text is shortened with a warning.
+const FIELD_LIMITS = {
+  ref: { max: 120, reject: true, label: 'Ticket number' },
+  customer: { max: 120, reject: true, label: 'Customer' },
+  title: { max: 500, label: 'Title' },
+  category: { max: 120, label: 'Category' },
+  source: { max: 120, label: 'Source' },
+  analyst: { max: 120, label: 'Analyst' },
+  notes: { max: 4000, label: 'Notes' },
+};
+
+const TIMESTAMP_LABELS = { occurredAt: 'Occurred', detectedAt: 'Detected', acknowledgedAt: 'Acknowledged', resolvedAt: 'Resolved' };
+
+function limitedText(payload, field, warnings) {
+  const value = clean(payload[field]);
+  const limit = FIELD_LIMITS[field];
+  if (value.length <= limit.max) return value;
+  if (limit.reject) throw new HttpError(400, `${limit.label} is longer than ${limit.max} characters.`);
+  warnings.push(`${limit.label} shortened to ${limit.max} characters.`);
+  return value.slice(0, limit.max);
 }
 
-function httpError(statusCode, message) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
+/** Validates an incident. Returns the row to store plus any warnings (e.g. shortened text). */
+function normalizeIncident(payload) {
+  const warnings = [];
+  const row = {};
+  for (const field of Object.keys(FIELD_LIMITS)) row[field] = limitedText(payload, field, warnings);
+  row.priority = normalizePriority(payload.priority);
+  for (const [field, label] of Object.entries(TIMESTAMP_LABELS)) {
+    const raw = clean(payload[field]);
+    row[field] = normalizeTimestamp(raw);
+    if (raw && !row[field]) throw new HttpError(400, `${label} time "${quoted(raw)}" is not a recognised date. Use 2026-11-05 14:30 or 05/11/2026 14:30.`);
+  }
+  row.status = normalizeStatus(payload.status, row);
+  if (!row.title && row.ref) row.title = `Ticket ${row.ref}`;
+  if (!row.title) throw new HttpError(400, 'Incident title (or a ticket number) is required.');
+  if (!row.detectedAt) throw new HttpError(400, 'Incident detected time is required.');
+  if (row.occurredAt && row.occurredAt > row.detectedAt) throw new HttpError(400, 'Occurred time cannot be after detected time.');
+  if (row.acknowledgedAt && row.acknowledgedAt < row.detectedAt) throw new HttpError(400, 'Acknowledged time cannot be before detected time.');
+  if (row.resolvedAt && row.resolvedAt < row.detectedAt) throw new HttpError(400, 'Resolved time cannot be before detected time.');
+  return { row, warnings };
+}
+
+/**
+ * Customer names are matched case-insensitively and stored with the spelling already in use
+ * (an existing incident, otherwise a customer-specific SLA), so "sample customer 1" and
+ * "Sample Customer 1" stay one customer in reports.
+ */
+function canonicalCustomer(db, name) {
+  if (!name) return '';
+  const existing = db.prepare('SELECT customer FROM incidents WHERE customer = ? COLLATE NOCASE ORDER BY id LIMIT 1').get(name);
+  if (existing) return existing.customer;
+  return findCustomerKey(readReportSettings(db).customerSla, name) || name;
+}
+
+function storeRow(db, row, id) {
+  const values = [row.ref, row.customer, row.title, row.priority, row.category, row.source, row.status, row.analyst, row.occurredAt, row.detectedAt, row.acknowledgedAt, row.resolvedAt, row.notes];
+  if (id) {
+    db.prepare(`UPDATE incidents SET ref = ?, customer = ?, title = ?, priority = ?, category = ?, source = ?, status = ?, analyst = ?, occurred_at = ?, detected_at = ?, acknowledged_at = ?, resolved_at = ?, notes = ? WHERE id = ?`)
+      .run(...values, Number.parseInt(String(id), 10) || 0);
+  } else {
+    db.prepare(`INSERT INTO incidents (ref, customer, title, priority, category, source, status, analyst, occurred_at, detected_at, acknowledged_at, resolved_at, notes, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(...values, new Date().toISOString());
+  }
 }
 
 function insertIncident(db, payload) {
-  const row = normalizeIncident(payload);
-  db.prepare(`INSERT INTO incidents (ref, customer, title, priority, category, source, status, analyst, occurred_at, detected_at, acknowledged_at, resolved_at, notes, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(row.ref, row.customer, row.title, row.priority, row.category, row.source, row.status, row.analyst, row.occurredAt, row.detectedAt, row.acknowledgedAt, row.resolvedAt, row.notes, new Date().toISOString());
+  const { row } = normalizeIncident(payload);
+  row.customer = canonicalCustomer(db, row.customer);
+  storeRow(db, row);
 }
 
 function updateIncident(db, id, payload) {
-  const row = normalizeIncident(payload);
-  db.prepare(`UPDATE incidents SET ref = ?, customer = ?, title = ?, priority = ?, category = ?, source = ?, status = ?, analyst = ?, occurred_at = ?, detected_at = ?, acknowledged_at = ?, resolved_at = ?, notes = ? WHERE id = ?`)
-    .run(row.ref, row.customer, row.title, row.priority, row.category, row.source, row.status, row.analyst, row.occurredAt, row.detectedAt, row.acknowledgedAt, row.resolvedAt, row.notes, Number.parseInt(String(id), 10) || 0);
+  const { row } = normalizeIncident(payload);
+  row.customer = canonicalCustomer(db, row.customer);
+  storeRow(db, row, id);
+}
+
+// ---- Change history ----
+
+function writeAudit(db, user, action, target, details) {
+  db.prepare('INSERT INTO incident_audit (at, username, role, action, target, details) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(new Date().toISOString(), clean(user?.username).slice(0, 120), clean(user?.role).slice(0, 20), action, clean(target).slice(0, 200), JSON.stringify(details ?? {}).slice(0, 4000));
+}
+
+function readAudit(db, limit = 500) {
+  return db.prepare('SELECT id, at, username, role, action, target, details FROM incident_audit ORDER BY id DESC LIMIT ?')
+    .all(Math.min(2000, Math.max(1, Number.parseInt(String(limit), 10) || 500)))
+    .map((entry) => {
+      let details = {};
+      try { details = JSON.parse(entry.details || '{}'); } catch { details = {}; }
+      return { ...entry, details };
+    });
+}
+
+function getIncident(db, id) {
+  return db.prepare(`SELECT id, ref, customer, title, priority, status, occurred_at AS occurredAt, detected_at AS detectedAt,
+    acknowledged_at AS acknowledgedAt, resolved_at AS resolvedAt FROM incidents WHERE id = ?`).get(Number.parseInt(String(id), 10) || 0);
+}
+
+const AUDITED_FIELDS = ['ref', 'customer', 'priority', 'status', 'occurredAt', 'detectedAt', 'acknowledgedAt', 'resolvedAt'];
+
+/** Field-by-field differences that matter for SLA results (timings, priority, customer, status). */
+function incidentChanges(before, after) {
+  const changes = {};
+  for (const field of AUDITED_FIELDS) {
+    if ((before?.[field] ?? '') !== (after?.[field] ?? '')) changes[field] = [before?.[field] ?? '', after?.[field] ?? ''];
+  }
+  return changes;
+}
+
+/** Summary of what changed in the report / SLA settings. */
+function settingsChanges(before, after) {
+  const changes = {};
+  if (before.orgName !== after.orgName) changes.orgName = [before.orgName, after.orgName];
+  if (JSON.stringify(before.weekendDays) !== JSON.stringify(after.weekendDays)) changes.weekendDays = [before.weekendDays, after.weekendDays];
+  if (JSON.stringify(before.compliance) !== JSON.stringify(after.compliance)) changes.compliance = [before.compliance, after.compliance];
+  if (JSON.stringify(before.slaTargets) !== JSON.stringify(after.slaTargets)) changes.standardTargets = [before.slaTargets, after.slaTargets];
+  const names = new Set([...Object.keys(before.customerSla), ...Object.keys(after.customerSla)]);
+  for (const name of names) {
+    const a = before.customerSla[name];
+    const b = after.customerSla[name];
+    if (!a) changes[`customer added: ${name}`] = b;
+    else if (!b) changes[`customer removed: ${name}`] = a;
+    else if (JSON.stringify(a) !== JSON.stringify(b)) changes[`customer changed: ${name}`] = [a, b];
+  }
+  return changes;
 }
 
 // ---- Excel / CSV import ----
@@ -408,7 +537,7 @@ function rowToPayload(cells, mapping) {
     const raw = get(field);
     if (!raw) continue;
     const minutesValue = parseDurationMinutes(raw);
-    if (minutesValue === null || minutesValue < 0) throw httpError(400, `${field.toUpperCase()} "${raw}" is not a duration. Use minutes (45), 1h 30m or 1:30.`);
+    if (minutesValue === null || minutesValue < 0) throw new HttpError(400, `${field.toUpperCase()} "${quoted(raw)}" is not a duration. Use minutes (45), 1h 30m or 1:30.`);
     durations[field] = minutesValue;
     if (!payload[column] && detectedStamp) {
       payload[column] = shiftStamp(detectedStamp, field === 'mttd' ? -minutesValue : minutesValue);
@@ -420,35 +549,37 @@ function rowToPayload(cells, mapping) {
 }
 
 function importRows(db, rows, label) {
-  if (rows.length < 2) throw httpError(400, `The ${label} has no data rows below the header.`);
+  if (rows.length < 2) throw new HttpError(400, `The ${label} has no data rows below the header.`);
   const headerIndex = rows.findIndex((row) => {
     const mapping = mapHeaders(row);
     return mapping.detectedAt !== undefined && (mapping.ref !== undefined || mapping.title !== undefined);
   });
   if (headerIndex < 0) {
-    throw httpError(400, `The ${label} needs a header row with at least a ticket number (or title) column and a detected date column. Download the template to see the expected columns.`);
+    throw new HttpError(400, `The ${label} needs a header row with at least a ticket number (or title) column and a detected date column. Download the template to see the expected columns.`);
   }
   const mapping = mapHeaders(rows[headerIndex]);
-  const findExisting = db.prepare('SELECT id FROM incidents WHERE ref = ? AND customer = ?');
+  // Re-imports update the existing ticket; ticket number and customer are compared case-insensitively.
+  const findExisting = db.prepare('SELECT id, ref FROM incidents WHERE ref = ? COLLATE NOCASE AND customer = ? COLLATE NOCASE');
   let added = 0;
   let updated = 0;
   let skipped = 0;
   const errors = [];
+  const warnings = [];
   db.exec('BEGIN');
   try {
     rows.slice(headerIndex + 1).forEach((cells, index) => {
       if (!cells.some((cell) => clean(cell))) return;
       try {
         const { payload } = rowToPayload(cells, mapping);
-        const normalized = normalizeIncident(payload);
-        const existing = normalized.ref ? findExisting.get(normalized.ref, normalized.customer) : null;
-        if (existing) {
-          updateIncident(db, existing.id, payload);
-          updated += 1;
-        } else {
-          insertIncident(db, payload);
-          added += 1;
-        }
+        const { row, warnings: rowWarnings } = normalizeIncident(payload);
+        row.customer = canonicalCustomer(db, row.customer);
+        const existing = row.ref ? findExisting.get(row.ref, row.customer) : null;
+        // Keep the ticket number as first stored, like the customer name, so "inc-9" updates "INC-9" in place.
+        if (existing) row.ref = existing.ref;
+        storeRow(db, row, existing?.id);
+        if (existing) updated += 1;
+        else added += 1;
+        for (const warning of rowWarnings) if (warnings.length < 25) warnings.push(`Row ${headerIndex + index + 2}: ${warning}`);
       } catch (error) {
         skipped += 1;
         if (errors.length < 25) errors.push(`Row ${headerIndex + index + 2}: ${error.message}`);
@@ -459,7 +590,7 @@ function importRows(db, rows, label) {
     db.exec('ROLLBACK');
     throw error;
   }
-  return { added, updated, skipped, errors, mappedColumns: Object.keys(mapping) };
+  return { added, updated, skipped, errors, warnings, mappedColumns: Object.keys(mapping) };
 }
 
 function importIncidentsCsv(db, csvText) {
@@ -497,16 +628,54 @@ function excelCellText(cell) {
   return value === null || value === undefined ? '' : String(value);
 }
 
+// Limits for what an uploaded .xlsx may expand to in memory. They do not restrict how many
+// incidents a sheet can hold in practice (a 10 MB workbook unpacks to far less than this).
+const XLSX_MAX_UNCOMPRESSED_BYTES = 250 * 1024 * 1024;
+const XLSX_MAX_ENTRIES = 2000;
+const XLSX_MAX_RATIO = 250;
+
+/**
+ * Reads the zip central directory of an .xlsx and rejects "decompression bombs" (small files
+ * that inflate to gigabytes) before any of it is unpacked.
+ */
+function inspectXlsxArchive(buffer) {
+  const reject = () => { throw new HttpError(400, 'This Excel file is not a normal workbook (it unpacks to an unsafe size). Re-save it in Excel as .xlsx and try again.'); };
+  const minEnd = Math.max(0, buffer.length - 65557);
+  let end = -1;
+  for (let i = buffer.length - 22; i >= minEnd; i -= 1) {
+    if (buffer.readUInt32LE(i) === 0x06054b50) { end = i; break; }
+  }
+  if (end < 0) throw new HttpError(400, 'Could not read the Excel file. Save it as .xlsx (Excel Workbook) and try again.');
+  const entries = buffer.readUInt16LE(end + 10);
+  const directoryOffset = buffer.readUInt32LE(end + 16);
+  if (entries === 0xffff || directoryOffset === 0xffffffff || entries > XLSX_MAX_ENTRIES) reject();
+  let offset = directoryOffset;
+  let total = 0;
+  for (let i = 0; i < entries; i += 1) {
+    if (offset + 46 > buffer.length || buffer.readUInt32LE(offset) !== 0x02014b50) {
+      throw new HttpError(400, 'Could not read the Excel file. Save it as .xlsx (Excel Workbook) and try again.');
+    }
+    const compressed = buffer.readUInt32LE(offset + 20);
+    const uncompressed = buffer.readUInt32LE(offset + 24);
+    if (compressed === 0xffffffff || uncompressed === 0xffffffff) reject(); // zip64 is never needed for a sheet this size
+    total += uncompressed;
+    if (total > XLSX_MAX_UNCOMPRESSED_BYTES) reject();
+    if (uncompressed > 1024 * 1024 && uncompressed / Math.max(1, compressed) > XLSX_MAX_RATIO) reject();
+    offset += 46 + buffer.readUInt16LE(offset + 28) + buffer.readUInt16LE(offset + 30) + buffer.readUInt16LE(offset + 32);
+  }
+}
+
 async function readXlsxRows(buffer) {
+  inspectXlsxArchive(buffer);
   const ExcelJS = require('exceljs');
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.load(buffer);
   } catch {
-    throw httpError(400, 'Could not read the Excel file. Save it as .xlsx (Excel Workbook) and try again.');
+    throw new HttpError(400, 'Could not read the Excel file. Save it as .xlsx (Excel Workbook) and try again.');
   }
   const sheet = workbook.getWorksheet('Incidents') || workbook.worksheets.find((ws) => ws.actualRowCount > 0);
-  if (!sheet) throw httpError(400, 'The Excel file has no data.');
+  if (!sheet) throw new HttpError(400, 'The Excel file has no data.');
   const rows = [];
   sheet.eachRow({ includeEmpty: false }, (row) => {
     const cells = [];
@@ -546,9 +715,9 @@ async function buildIncidentTemplateXlsx() {
   header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D2138' } };
   header.height = 20;
   const examples = [
-    ['INC-1001', 'Customer A', 'Brute force on VPN gateway', 'P2', new Date(Date.UTC(2026, 10, 1, 8, 10)), 8, 15, '3h 30m', 'Credential access', 'Analyst 1', 'Closed', 'Blocked source IPs'],
-    ['INC-1002', 'Customer B', 'Malware detected on endpoint', 'P1', new Date(Date.UTC(2026, 10, 2, 21, 15)), 5, 7, '', 'Malware', 'Analyst 2', 'Acknowledged', 'Host isolated, still investigating'],
-    ['INC-1003', 'Customer A', '', 'P3', new Date(Date.UTC(2026, 10, 3, 9, 40)), '', 45, '1:20', '', '', '', 'Title is optional'],
+    ['INC-1001', 'Sample Customer 1', 'Brute force on VPN gateway', 'P2', new Date(Date.UTC(2026, 7, 4, 8, 10)), 8, 15, '3h 30m', 'Credential access', 'Analyst 1', 'Closed', 'Blocked source IPs'],
+    ['INC-1002', 'Sample Customer 2', 'Malware detected on endpoint', 'P1', new Date(Date.UTC(2026, 7, 12, 21, 15)), 5, 7, '', 'Malware', 'Analyst 2', 'Acknowledged', 'Host isolated, still investigating'],
+    ['INC-1003', 'Sample Customer 1', '', 'P3', new Date(Date.UTC(2026, 7, 19, 9, 40)), '', 45, '1:20', '', '', '', 'Title is optional'],
   ];
   for (const values of examples) sheet.addRow(values);
   for (let rowNumber = 2; rowNumber <= 500; rowNumber += 1) {
@@ -566,7 +735,7 @@ async function buildIncidentTemplateXlsx() {
     ['Customer', 'Customer or tenant name. Must match the name used for any customer-specific SLA in Settings → SLA & KPI policies.'],
     ['Title', 'Optional short description. If empty, "Ticket <number>" is used.'],
     ['Priority *', 'P1, P2, P3 or P4 (Critical / High / Medium / Low and 1–4 are also accepted).'],
-    ['Detected *', 'Date and time the incident was detected, e.g. 2026-11-05 14:30 or 05/11/2026 14:30.'],
+    ['Detected *', 'Date and time the incident was detected, e.g. 2026-08-04 14:30 or 04/08/2026 14:30.'],
     ['MTTD', 'Time to detect: from when the activity happened to detection. Optional.'],
     ['MTTA', 'Time to acknowledge: from detection to acknowledgement.'],
     ['MTTR', 'Time to resolve: from detection to resolution. Leave empty while the incident is still open.'],
@@ -585,8 +754,8 @@ async function buildIncidentTemplateXlsx() {
 
 const CSV_TEMPLATE = [
   'Ticket number,Customer,Title,Priority,Detected,MTTD,MTTA,MTTR,Category,Analyst,Status,Notes',
-  'INC-1001,Customer A,Brute force on VPN gateway,P2,2026-11-01 08:10,8,15,3h 30m,Credential access,Analyst 1,Closed,Blocked source IPs',
-  'INC-1002,Customer B,Malware detected on endpoint,P1,2026-11-02 21:15,5,7,,Malware,Analyst 2,Acknowledged,Host isolated',
+  'INC-1001,Sample Customer 1,Brute force on VPN gateway,P2,2026-08-04 08:10,8,15,3h 30m,Credential access,Analyst 1,Closed,Blocked source IPs',
+  'INC-1002,Sample Customer 2,Malware detected on endpoint,P1,2026-08-12 21:15,5,7,,Malware,Analyst 2,Acknowledged,Host isolated',
 ].join('\r\n');
 
 module.exports = {
@@ -604,6 +773,12 @@ module.exports = {
   updateIncident,
   importIncidentsCsv,
   importIncidentsXlsx,
+  inspectXlsxArchive,
+  writeAudit,
+  readAudit,
+  getIncident,
+  incidentChanges,
+  settingsChanges,
   buildIncidentTemplateXlsx,
   parseDurationMinutes,
   normalizeTimestamp,

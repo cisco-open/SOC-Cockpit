@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Cisco Systems, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { AppSnapshot, ReportSettings, AuthStatus, AuthUser, DirectoryLookupResult, DirectorySettingsDraft, DirectorySettingsResponse, DirectoryTestResult, ManagedUserList, RecordKind, RosterLabel, UserRole, UserStatus } from './types';
+import type { AppSnapshot, IncidentAuditEntry, ReportSettings, AuthStatus, AuthUser, DirectoryLookupResult, DirectorySettingsDraft, DirectorySettingsResponse, DirectoryTestResult, ManagedUserList, RecordKind, RosterLabel, UserRole, UserStatus } from './types';
 
 export const AUTH_EXPIRED_EVENT = 'soc-auth-expired';
 
@@ -91,10 +91,11 @@ export const api = {
     }
     return response.blob();
   },
+  getIncidentAudit: (limit = 200) => request<{ entries: IncidentAuditEntry[] }>(`/api/incidents/audit?limit=${limit}`),
   importIncidents: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return request<{ snapshot: AppSnapshot; added: number; updated: number; skipped: number; errors: string[]; mappedColumns: string[] }>('/api/incidents/import', { method: 'POST', body: formData });
+    return request<{ snapshot: AppSnapshot; added: number; updated: number; skipped: number; errors: string[]; warnings?: string[]; mappedColumns: string[] }>('/api/incidents/import', { method: 'POST', body: formData });
   },
   generateAdvisorBrief: (date?: string) => request<AppSnapshot>('/api/advisor/generate', { method: 'POST', body: JSON.stringify({ date }) }),
   answerQuestion: (messages: Array<{ role: 'user' | 'assistant'; content: string }>) =>

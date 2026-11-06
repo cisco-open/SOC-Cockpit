@@ -188,7 +188,7 @@ test('Excel template imports, including time-formatted durations', async () => {
   assert.equal(first.added, 3, 'the three example rows');
   assert.deepEqual(first.errors, []);
   const example = first.snapshot.incidents.find((item) => item.ref === 'INC-1003');
-  assert.equal(example.resolvedAt, '2026-11-03T11:00', 'MTTR 1:20 from 09:40');
+  assert.equal(example.resolvedAt, '2026-08-19T11:00', 'MTTR 1:20 from 09:40');
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('SLA');
@@ -203,4 +203,125 @@ test('Excel template imports, including time-formatted durations', async () => {
   assert.deepEqual([imported.priority, imported.detectedAt, imported.acknowledgedAt, imported.resolvedAt], ['P1', '2026-11-04T09:00', '2026-11-04T09:12', '2026-11-04T10:35']);
 
   await assert.rejects(() => store.importIncidentsXlsx(Buffer.from('PK\x03\x04not really')), /Could not read the Excel file/);
+});
+
+test('review: unknown statuses are rejected, synonyms are mapped', () => {
+  const { store } = tempStore();
+  const base = { ref: 'S-1', title: 'x', detectedAt: '2026-11-01 08:00' };
+  assert.equal(store.createRecord('incident', { ...base, status: 'In Progress' }).incidents[0].status, 'Acknowledged');
+  assert.equal(store.createRecord('incident', { ...base, ref: 'S-2', status: 'done' }).incidents.find((i) => i.ref === 'S-2').status, 'Closed');
+  assert.throws(() => store.createRecord('incident', { ...base, ref: 'S-3', status: 'Escalated' }), /Status "Escalated" is not recognised/);
+  const result = store.importIncidentsCsv('Ticket number,Detected,Status\nS-4,2026-11-01 08:00,banana\n');
+  assert.equal(result.added, 0);
+  assert.match(result.errors[0], /Row 2: Status "banana" is not recognised/);
+});
+
+test('review: re-import matches ticket and customer case-insensitively and keeps one spelling', () => {
+  const { store } = tempStore();
+  store.importIncidentsCsv('Ticket number,Customer,Priority,Detected,MTTA\nINC-9,Sample Customer 1,P1,2026-11-01 08:00,10\n');
+  const again = store.importIncidentsCsv('Ticket number,Customer,Priority,Detected,MTTA\ninc-9,  sample CUSTOMER 1 ,P1,2026-11-01 08:00,12\nINC-10,SAMPLE CUSTOMER 1,P2,2026-11-02 09:00,5\n');
+  assert.equal(again.added, 1);
+  assert.equal(again.updated, 1, 'same ticket, different case -> updated');
+  assert.equal(again.snapshot.incidents.length, 2);
+  assert.deepEqual([...new Set(again.snapshot.incidents.map((i) => i.customer))], ['Sample Customer 1'], 'first spelling is kept');
+  assert.equal(again.snapshot.incidents.find((i) => i.ref === 'INC-9').acknowledgedAt, '2026-11-01T08:12');
+
+  const { store: other } = tempStore();
+  other.updateReportSettings({ customerSla: { 'Sample Customer 2': { P1: { ack: 5 } } } });
+  const created = other.createRecord('incident', { ref: 'G-1', customer: 'sample customer 2', title: 'x', detectedAt: '2026-11-01 08:00' });
+  assert.equal(created.incidents[0].customer, 'Sample Customer 2', 'matches the customer SLA spelling');
+});
+
+test('review: free-form dates are rejected instead of guessed', () => {
+  const { store } = tempStore();
+  assert.equal(normalizeTimestamp('Nov 5 2026 14:30'), '');
+  assert.equal(normalizeTimestamp('2026-11-05T14:30:00.000+03:00').length, 16, 'ISO with offset still accepted');
+  assert.throws(() => store.createRecord('incident', { ref: 'D-1', detectedAt: 'Nov 5 2026 14:30' }), /Detected time "Nov 5 2026 14:30" is not a recognised date/);
+  assert.throws(() => store.createRecord('incident', { ref: 'D-2', detectedAt: '2026-11-05 14:30', resolvedAt: 'tomorrow' }), /Resolved time "tomorrow" is not a recognised date/);
+});
+
+test('review: long identifiers are rejected, long text is shortened with a warning', () => {
+  const { store } = tempStore();
+  assert.throws(() => store.createRecord('incident', { ref: 'X'.repeat(121), detectedAt: '2026-11-05 14:30' }), /Ticket number is longer than 120 characters/);
+  const result = store.importIncidentsCsv(`Ticket number,Title,Detected\nL-1,${'t'.repeat(600)},2026-11-05 14:30\n`);
+  assert.equal(result.added, 1);
+  assert.equal(result.snapshot.incidents[0].title.length, 500);
+  assert.match(result.warnings[0], /Row 2: Title shortened to 500 characters/);
+});
+
+test('review: validation errors carry HTTP 400', () => {
+  const { HttpError } = require('../server/errors.cjs');
+  const { store } = tempStore();
+  try {
+    store.createRecord('incident', { title: 'x' });
+    assert.fail('expected an error');
+  } catch (error) {
+    assert.ok(error instanceof HttpError);
+    assert.equal(error.statusCode, 400);
+  }
+});
+
+// ---- security hardening ----
+
+test('security: customer SLA keys like __proto__ are ignored', () => {
+  const { store } = tempStore();
+  const settings = store.updateReportSettings(JSON.parse('{"customerSla":{"__proto__":{"P1":{"ack":1}},"Constructor":{"P1":{"ack":2}},"Sample Customer 1":{"P1":{"ack":3}}}}')).settings.reports;
+  assert.deepEqual(Object.keys(settings.customerSla), ['Sample Customer 1']);
+  assert.equal(Object.getPrototypeOf(settings.customerSla), Object.prototype, 'prototype untouched');
+});
+
+test('security: Excel decompression bombs are rejected before unpacking', () => {
+  const { inspectXlsxArchive } = require('../server/incidents.cjs');
+  // Central directory entry claiming 1 KB compressed -> 600 MB uncompressed.
+  const entry = Buffer.alloc(46 + 8);
+  entry.writeUInt32LE(0x02014b50, 0);
+  entry.writeUInt32LE(1024, 20);
+  entry.writeUInt32LE(600 * 1024 * 1024, 24);
+  entry.writeUInt16LE(8, 28);
+  entry.write('bomb.xml', 46);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(entry.length, 12);
+  end.writeUInt32LE(0, 16);
+  assert.throws(() => inspectXlsxArchive(Buffer.concat([entry, end])), /unpacks to an unsafe size/);
+});
+
+test('security: the real Excel template passes the archive check', async () => {
+  const { inspectXlsxArchive } = require('../server/incidents.cjs');
+  const template = await buildIncidentTemplateXlsx();
+  assert.doesNotThrow(() => inspectXlsxArchive(template));
+});
+
+test('security: error messages never echo long or control-character input', () => {
+  const { store } = tempStore();
+  const payload = { ref: 'E-1', detectedAt: '2026-11-05 10:00', status: `x\u0000\u001b[31m${'A'.repeat(500)}` };
+  assert.throws(() => store.createRecord('incident', payload), (error) => {
+    assert.ok(error.message.length < 160, 'message stays short');
+    assert.ok(!/[\u0000-\u001f]/.test(error.message), 'no control characters');
+    return true;
+  });
+});
+
+test('security: incident changes and SLA policy changes are written to the audit log', () => {
+  const { store } = tempStore();
+  const admin = { username: 'admin', role: 'Admin' };
+  const operator = { username: 'op1', role: 'Operator' };
+  let snapshot = store.createIncident({ ref: 'A-1', customer: 'Sample Customer 1', priority: 'P1', detectedAt: '2026-11-05 10:00', acknowledgedAt: '2026-11-05 10:30' }, operator);
+  const id = snapshot.incidents[0].id;
+  store.updateIncident(id, { ...snapshot.incidents[0], acknowledgedAt: '2026-11-05 10:05' }, operator);
+  store.importIncidentsCsv('Ticket number,Detected,MTTA\nA-2,2026-11-05 11:00,5\n', operator, { name: 'nov.csv', sha256: 'abc' });
+  store.updateReportSettings({ compliance: { target: 97, amber: 90 } }, admin);
+  store.updateReportSettings({ compliance: { target: 97, amber: 90 } }, admin); // no change: not logged
+  store.deleteIncident(id, admin);
+
+  const log = store.readIncidentAudit();
+  assert.deepEqual(log.map((entry) => entry.action), ['incident.delete', 'sla-settings.update', 'incidents.import', 'incident.update', 'incident.create']);
+  const edit = log.find((entry) => entry.action === 'incident.update');
+  assert.equal(edit.username, 'op1');
+  assert.deepEqual(edit.details.acknowledgedAt, ['2026-11-05T10:30', '2026-11-05T10:05'], 'before and after are kept');
+  assert.equal(log.find((entry) => entry.action === 'incidents.import').details.added, 1);
+  assert.ok(log.find((entry) => entry.action === 'sla-settings.update').details.compliance);
+  assert.equal(log[0].details.acknowledgedAt[0], '2026-11-05T10:05', 'deleted values are kept in the log');
+  assert.throws(() => store.updateIncident(9999, {}, operator), /Incident not found/);
 });
