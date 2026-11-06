@@ -365,9 +365,37 @@ function updateIncident(db, id, payload) {
 
 // ---- Change history ----
 
+const MAX_AUDIT_DETAILS_LENGTH = 4000;
+const MAX_AUDIT_KEY_LENGTH = 120;
+
+/**
+ * Serialises audit details, always as valid JSON. Details that fit are stored in full; larger
+ * ones (for example an SLA policy save that touches many customers) are replaced by a summary of
+ * what changed, so the history never holds cut-off JSON that later reads back as empty.
+ */
+function serializeAuditDetails(details) {
+  const value = details && typeof details === 'object' ? details : {};
+  const json = JSON.stringify(value);
+  if (json.length <= MAX_AUDIT_DETAILS_LENGTH) return json;
+
+  const allKeys = Object.keys(value).map((key) => key.slice(0, MAX_AUDIT_KEY_LENGTH));
+  const summary = { truncated: true, originalLength: json.length, keyCount: allKeys.length, keys: allKeys };
+  // Keep short scalar context such as an incident id or import counts.
+  for (const field of ['id', 'format', 'sha256', 'added', 'updated', 'skipped']) {
+    if (value[field] !== undefined && typeof value[field] !== 'object') summary[field] = value[field];
+  }
+  // Drop key names from the end until the summary itself fits.
+  let out = JSON.stringify(summary);
+  while (out.length > MAX_AUDIT_DETAILS_LENGTH && summary.keys.length) {
+    summary.keys = summary.keys.slice(0, Math.floor(summary.keys.length * 0.75));
+    out = JSON.stringify(summary);
+  }
+  return out;
+}
+
 function writeAudit(db, user, action, target, details) {
   db.prepare('INSERT INTO incident_audit (at, username, role, action, target, details) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(new Date().toISOString(), clean(user?.username).slice(0, 120), clean(user?.role).slice(0, 20), action, clean(target).slice(0, 200), JSON.stringify(details ?? {}).slice(0, 4000));
+    .run(new Date().toISOString(), clean(user?.username).slice(0, 120), clean(user?.role).slice(0, 20), action, clean(target).slice(0, 200), serializeAuditDetails(details));
 }
 
 function readAudit(db, limit = 500) {
@@ -375,7 +403,12 @@ function readAudit(db, limit = 500) {
     .all(Math.min(2000, Math.max(1, Number.parseInt(String(limit), 10) || 500)))
     .map((entry) => {
       let details = {};
-      try { details = JSON.parse(entry.details || '{}'); } catch { details = {}; }
+      try {
+        details = JSON.parse(entry.details || '{}');
+      } catch {
+        // Entries written before details were summarised may have been cut off mid-JSON.
+        details = { truncated: true, unreadable: true };
+      }
       return { ...entry, details };
     });
 }
@@ -776,6 +809,7 @@ module.exports = {
   inspectXlsxArchive,
   writeAudit,
   readAudit,
+  serializeAuditDetails,
   getIncident,
   incidentChanges,
   settingsChanges,

@@ -325,3 +325,51 @@ test('security: incident changes and SLA policy changes are written to the audit
   assert.equal(log[0].details.acknowledgedAt[0], '2026-11-05T10:05', 'deleted values are kept in the log');
   assert.throws(() => store.updateIncident(9999, {}, operator), /Incident not found/);
 });
+
+test('audit: large SLA policy changes are stored as a readable summary, not cut-off JSON', () => {
+  const { store } = tempStore();
+  const admin = { username: 'admin', role: 'Admin' };
+  // 60 customer-specific SLAs in one save: the change details are far above the 4000-character limit.
+  const customerSla = {};
+  for (let i = 1; i <= 60; i += 1) customerSla[`Sample Customer ${i}`] = { P1: { ack: 5 + i } };
+  store.updateReportSettings({ customerSla }, admin);
+
+  const [entry] = store.readIncidentAudit();
+  assert.equal(entry.action, 'sla-settings.update');
+  assert.equal(entry.details.truncated, true, 'marked as truncated');
+  assert.ok(entry.details.originalLength > 4000, 'records how large the original details were');
+  assert.equal(entry.details.keyCount, 60, 'counts every changed item');
+  assert.ok(entry.details.keys.includes('customer added: Sample Customer 1'), 'lists what changed');
+});
+
+test('audit: small changes keep their full details', () => {
+  const { store } = tempStore();
+  store.updateReportSettings({ compliance: { target: 97, amber: 90 } }, { username: 'admin', role: 'Admin' });
+  const [entry] = store.readIncidentAudit();
+  assert.equal(entry.details.truncated, undefined);
+  assert.deepEqual(entry.details.compliance[1], { target: 97, amber: 90 });
+});
+
+test('audit: summaries stay within the limit even with very long key lists', () => {
+  const { serializeAuditDetails } = require('../server/incidents.cjs');
+  const details = { id: 7 };
+  for (let i = 0; i < 400; i += 1) details[`customer changed: ${'Very Long Customer Name '.repeat(4)}${i}`] = [{ a: i }, { a: i + 1 }];
+  const json = serializeAuditDetails(details);
+  assert.ok(json.length <= 4000);
+  const parsed = JSON.parse(json);
+  assert.equal(parsed.truncated, true);
+  assert.equal(parsed.keyCount, 401);
+  assert.equal(parsed.id, 7, 'short context kept');
+  assert.ok(parsed.keys.length > 0 && parsed.keys.length < 401, 'key list shortened to fit');
+});
+
+test('audit: entries cut off by older versions read back as unreadable, not empty', () => {
+  const { store, dir } = tempStore();
+  store.updateReportSettings({ compliance: { target: 96, amber: 90 } }, { username: 'admin', role: 'Admin' });
+  const { DatabaseSync } = require('node:sqlite');
+  const db = new DatabaseSync(path.join(dir, 'data', 'test.sqlite'));
+  db.prepare("UPDATE incident_audit SET details = '{\"customer added: X\":{\"P1\":{\"ack\"'").run();
+  db.close();
+  const [entry] = store.readIncidentAudit();
+  assert.deepEqual(entry.details, { truncated: true, unreadable: true });
+});
