@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Cisco Systems, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { t, getLocale } from './i18n';
 import type { AppSnapshot } from './types';
 
 type Health = 'healthy' | 'watch' | 'risk';
@@ -49,12 +50,12 @@ function dayNum(iso: string): string {
 }
 
 function weekdayShort(iso: string): string {
-  return new Intl.DateTimeFormat('en-GB', { weekday: 'narrow' }).format(new Date(`${iso}T00:00:00`));
+  return new Intl.DateTimeFormat(getLocale(), { weekday: 'narrow' }).format(new Date(`${iso}T00:00:00`));
 }
 
 function shortDate(iso: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso || '—';
-  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' }).format(new Date(`${iso}T00:00:00`));
+  return new Intl.DateTimeFormat(getLocale(), { day: '2-digit', month: 'short' }).format(new Date(`${iso}T00:00:00`));
 }
 
 const OFF_CODES = new Set(['DO']);
@@ -173,14 +174,14 @@ export function ReadinessGauge({ score, gaps, atRisk, openIssues }: { score: num
   const health = ragFromScore(clamped);
   const valueDeg = -90 + (clamped / 100) * 180;
   return (
-    <svg viewBox="0 0 320 200" role="img" aria-label={`SOC readiness ${clamped}`}>
+    <svg viewBox="0 0 320 200" role="img" aria-label={t("SOC readiness {{value0}}", { value0: clamped })}>
       <path d={arcPath(160, 160, 118, -90, 90)} fill="none" stroke="#e4ebf2" strokeWidth={20} strokeLinecap="round" />
       <path d={arcPath(160, 160, 118, -90, valueDeg)} fill="none" stroke={healthColor(health)} strokeWidth={20} strokeLinecap="round" />
       <text x={160} y={150} textAnchor="middle" fontSize={52} fontWeight={700} fill="var(--head)">{clamped}</text>
-      <text x={160} y={178} textAnchor="middle" fontSize={13} fill="var(--muted)" letterSpacing="0.5">READINESS</text>
+      <text x={160} y={178} textAnchor="middle" fontSize={13} fill="var(--muted)" letterSpacing="0.5">{t("READINESS")}</text>
       <text x={42} y={192} textAnchor="middle" fontSize={11} fill="var(--muted)">0</text>
       <text x={278} y={192} textAnchor="middle" fontSize={11} fill="var(--muted)">100</text>
-      <text x={160} y={198} textAnchor="middle" fontSize={11} fill="var(--muted)">{gaps} gaps · {atRisk} at risk · {openIssues} open</text>
+      <text x={160} y={198} textAnchor="middle" fontSize={11} fill="var(--muted)">{gaps} {t("gaps ·")} {atRisk} {t("at risk ·")} {openIssues} {t("open")}</text>
     </svg>
   );
 }
@@ -193,13 +194,13 @@ export function SlaHeatmap({ app }: { app: AppSnapshot }) {
   const kpis = app.kpis;
   const reds = kpis.filter((k) => k.health === 'risk').length;
   const watches = kpis.filter((k) => k.health === 'watch').length;
-  if (kpis.length === 0) return <div className="widget-empty">No KPIs defined.</div>;
+  if (kpis.length === 0) return <div className="widget-empty">{t("No KPIs defined.")}</div>;
   const shown = [...kpis].sort((a, b) => (rank[a.health] ?? 3) - (rank[b.health] ?? 3)).slice(0, 12);
   return (
     <div className="sla-heat-wrap">
       <div className="sla-heat">
         {shown.map((k) => (
-          <div key={k.id} className="sla-tile" style={{ background: healthColor(k.health), color: healthTextColor(k.health) }} title={`${k.name}: ${k.actual} (target ${k.target})`}>
+          <div key={k.id} className="sla-tile" style={{ background: healthColor(k.health), color: healthTextColor(k.health) }} title={t("{{value0}}: {{value1}} (target {{value2}})", { value0: k.name, value1: k.actual, value2: k.target })}>
             <span className="sla-code">{k.code}</span>
             <span className="sla-val">{k.actual || '—'}</span>
             <span className="sla-trend">{k.trend === 'up' ? '▲' : k.trend === 'down' ? '▼' : '—'} {k.delta}</span>
@@ -208,8 +209,8 @@ export function SlaHeatmap({ app }: { app: AppSnapshot }) {
       </div>
       <div className="widget-foot">
         {reds + watches > 0
-          ? <span className="foot-alert">{reds} off target · {watches} watch · {kpis.length} tracked</span>
-          : <span className="foot-ok">All {kpis.length} KPIs within tolerance</span>}
+          ? <span className="foot-alert">{reds} {t("off target ·")} {watches} {t("watch ·")} {kpis.length} {t("tracked")}</span>
+          : <span className="foot-ok">{t("All")} {kpis.length} {t("KPIs within tolerance")}</span>}
       </div>
     </div>
   );
@@ -226,21 +227,21 @@ export function RiskDecisions({ app }: { app: AppSnapshot }) {
   const healthy = activeIssues.filter((i) => i.health === 'healthy').length;
   const total = Math.max(activeIssues.length, 1);
   const topRisk = activeIssues.filter((i) => i.health === 'risk').slice(0, 3);
-  const seg = (n: number, color: string) => (n > 0 ? <div style={{ width: `${(n / total) * 100}%`, background: color }} title={`${n}`} /> : null);
+  const seg = (n: number, color: string) => (n > 0 ? <div style={{ width: `${(n / total) * 100}%`, background: color }} title={t(`${n}`)} /> : null);
   return (
     <div className="risk-wrap">
       <div className="risk-top">
-        <div className="risk-big"><strong>{risk + watch}</strong><span>open issues</span></div>
-        <div className="risk-decisions"><strong>{risk}</strong><span>need a decision</span></div>
+        <div className="risk-big"><strong>{risk + watch}</strong><span>{t("open issues")}</span></div>
+        <div className="risk-decisions"><strong>{risk}</strong><span>{t("need a decision")}</span></div>
       </div>
       <div className="risk-bar">
         {seg(risk, 'var(--risk)')}
         {seg(watch, 'var(--watch)')}
         {seg(healthy, 'var(--healthy)')}
       </div>
-      <div className="risk-legend"><span><i style={{ background: 'var(--risk)' }} />Risk {risk}</span><span><i style={{ background: 'var(--watch)' }} />Watch {watch}</span><span><i style={{ background: 'var(--healthy)' }} />OK {healthy}</span></div>
+      <div className="risk-legend"><span><i style={{ background: 'var(--risk)' }} />{t("Risk")} {risk}</span><span><i style={{ background: 'var(--watch)' }} />{t("Watch")} {watch}</span><span><i style={{ background: 'var(--healthy)' }} />{t("OK")} {healthy}</span></div>
       <ul className="risk-list">
-        {topRisk.length ? topRisk.map((i) => <li key={i.id} title={i.title}>{i.title}</li>) : <li className="muted">No risk-flagged issues.</li>}
+        {topRisk.length ? topRisk.map((i) => <li key={i.id} title={t(i.title)}>{i.title}</li>) : <li className="muted">{t("No risk-flagged issues.")}</li>}
       </ul>
     </div>
   );
@@ -286,13 +287,13 @@ export function CoverageTreemap({ app, planningDate }: { app: AppSnapshot; plann
     const health = ragFromWorkingRatio(working, total);
     return { key: g.channel, value: total, working, total, offDay: false, isRotation: false, shifts: 0, health };
   });
-  if (items.length === 0) return <div className="widget-empty">No staff sub teams.</div>;
+  if (items.length === 0) return <div className="widget-empty">{t("No staff sub teams.")}</div>;
 
   const W = 320;
   const H = 196;
   const tiles = treemap(items, 0, 0, W, H);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Coverage by channel">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("Coverage by channel")}>
       {tiles.map((t, index) => {
         const short = t.key.length > 14 ? `${t.key.slice(0, 13)}…` : t.key;
         const compact = compactChannelName(t.key);
@@ -343,7 +344,7 @@ export function CoverageHeatStrip({ app, planningDate }: { app: AppSnapshot; pla
   const cellW = (W - leftPad) / days.length;
   const cellH = (H - topPad - 8) / shifts.length;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="14 day coverage">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("14 day coverage")}>
       {days.map((d, ci) => (
         <text key={d} x={leftPad + ci * cellW + cellW / 2} y={16} textAnchor="middle" fontSize={8} fill="var(--muted)">{dayNum(d)}</text>
       ))}
@@ -367,7 +368,7 @@ export function CoverageHeatStrip({ app, planningDate }: { app: AppSnapshot; pla
               fill={cellColor(n)}
               opacity={n === 0 ? 0.85 : 1}
             >
-              <title>{s} {d}: {n} on shift</title>
+              <title>{s} {d}: {n} {t("on shift")}</title>
             </rect>
           );
         }),
@@ -406,7 +407,7 @@ export function LeaveWorkload({ app, planningDate }: { app: AppSnapshot; plannin
   const H = Math.max(60, rows.length * rowH + 24);
   return (
     <div className="lw-wrap">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Leave load per team">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("Leave load per team")}>
         {rows.map((r, i) => {
           const bw = (r.leave / maxLeave) * (W - labelW - 34);
           const color = r.leave >= maxLeave * 0.75 && maxLeave > 3 ? 'var(--risk)' : r.leave >= maxLeave * 0.4 ? 'var(--watch)' : 'var(--medium-blue)';
@@ -421,7 +422,7 @@ export function LeaveWorkload({ app, planningDate }: { app: AppSnapshot; plannin
           );
         })}
       </svg>
-      <div className="widget-foot"><span className="muted">{totalLeave} working-day absence(s) in {shortDate(`${month}-01`).split(' ')[1]}</span></div>
+      <div className="widget-foot"><span className="muted">{totalLeave} {t("working-day absence(s) in")} {shortDate(`${month}-01`).split(' ')[1]}</span></div>
     </div>
   );
 }
@@ -471,7 +472,7 @@ export function StandupDailyTrend({ app }: { app: AppSnapshot }) {
 
   return (
     <div className="task-trend-wrap">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Recorded versus completed standup tasks per day for the last 30 days">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("Recorded versus completed standup tasks per day for the last 30 days")}>
         {axisLevels.map((level) => {
           const y = chartY + chartH - (level / maxTotal) * chartH;
           return (
@@ -493,12 +494,12 @@ export function StandupDailyTrend({ app }: { app: AppSnapshot }) {
             <g key={row.iso}>
               {row.remaining > 0 ? (
                 <rect x={x} y={totalY} width={barW} height={remainingHeight} rx={radius} fill="#cfd9e4">
-                  <title>{`${row.iso}: ${row.total} recorded, ${row.completed} completed, ${row.remaining} not completed`}</title>
+                  <title>{t("{{value0}}: {{value1}} recorded, {{value2}} completed, {{value3}} not completed", { value0: row.iso, value1: row.total, value2: row.completed, value3: row.remaining })}</title>
                 </rect>
               ) : null}
               {row.completed > 0 ? (
                 <rect x={x} y={completedY} width={barW} height={completedHeight} rx={radius} fill="var(--healthy)">
-                  <title>{`${row.iso}: ${row.total} recorded, ${row.completed} completed`}</title>
+                  <title>{t("{{value0}}: {{value1}} recorded, {{value2}} completed", { value0: row.iso, value1: row.total, value2: row.completed })}</title>
                 </rect>
               ) : null}
               {row.total === 0 ? <circle cx={x + barW / 2} cy={chartY + chartH - 2} r={1.4} fill="#d5dde6" /> : null}
@@ -509,8 +510,8 @@ export function StandupDailyTrend({ app }: { app: AppSnapshot }) {
         })}
       </svg>
       <div className="widget-foot task-trend-foot">
-        <span className="muted">Last 30 days: {totalRecorded} recorded · {totalCompleted} completed · {completionRate}% completion</span>
-        <span className="task-trend-legend"><i className="trend-chip completed" />Completed <i className="trend-chip remaining" />Recorded, not completed</span>
+        <span className="muted">{t("Last 30 days:")} {totalRecorded} {t("recorded ·")} {totalCompleted} {t("completed ·")} {completionRate}{t("% completion")}</span>
+        <span className="task-trend-legend"><i className="trend-chip completed" />{t("Completed")} <i className="trend-chip remaining" />{t("Recorded, not completed")}</span>
       </div>
     </div>
   );
@@ -535,11 +536,11 @@ export function EisenhowerSnapshot({ app, planningDate }: { app: AppSnapshot; pl
         {cells.map((c) => (
           <div key={c.q} className={`eh-cell quadrant-chip ${c.cls}`}>
             <strong>{openBy(c.q)}</strong>
-            <span>{c.label}</span>
+            <span>{t(c.label)}</span>
           </div>
         ))}
       </div>
-      <div className="widget-foot"><span className="muted">{completed}/{tasks.length || 0} done today</span></div>
+      <div className="widget-foot"><span className="muted">{completed}/{tasks.length || 0} {t("done today")}</span></div>
     </div>
   );
 }
@@ -556,12 +557,12 @@ export function ObjectivesProjects({ app }: { app: AppSnapshot }) {
     .sort((a, b) => (rank[a.health] ?? 3) - (rank[b.health] ?? 3) || String(a.due).localeCompare(String(b.due)))
     .slice(0, 6);
   const atRisk = [...app.objectives, ...app.projects].filter((x) => x.health !== 'healthy').length;
-  if (rows.length === 0) return <div className="widget-empty">No objectives or projects.</div>;
+  if (rows.length === 0) return <div className="widget-empty">{t("No objectives or projects.")}</div>;
   return (
     <div className="op-wrap">
       <div className="op-list">
         {rows.map((r) => (
-          <div className="op-row" key={r.id} title={r.label}>
+          <div className="op-row" key={r.id} title={t(r.label)}>
             <span className="op-kind">{r.kind}</span>
             <span className="op-label">{r.label}</span>
             <span className="op-track"><span className="op-fill" style={{ width: `${Math.max(3, Math.min(100, r.progress))}%`, background: healthColor(r.health) }} /></span>
@@ -569,7 +570,7 @@ export function ObjectivesProjects({ app }: { app: AppSnapshot }) {
           </div>
         ))}
       </div>
-      <div className="widget-foot">{atRisk > 0 ? <span className="foot-alert">{atRisk} at risk / watch</span> : <span className="foot-ok">All on track</span>}</div>
+      <div className="widget-foot">{atRisk > 0 ? <span className="foot-alert">{atRisk} {t("at risk / watch")}</span> : <span className="foot-ok">{t("All on track")}</span>}</div>
     </div>
   );
 }
@@ -579,7 +580,7 @@ export function ObjectivesProjects({ app }: { app: AppSnapshot }) {
 // ==================================================================
 export function MaturityRadar({ app }: { app: AppSnapshot }) {
   const procs = (app.processes ?? []).slice(0, 8);
-  if (procs.length < 3) return <div className="widget-empty">Need at least 3 processes for a radar.</div>;
+  if (procs.length < 3) return <div className="widget-empty">{t("Need at least 3 processes for a radar.")}</div>;
   const W = 320;
   const H = 196;
   const cx = W / 2;
@@ -592,7 +593,7 @@ export function MaturityRadar({ app }: { app: AppSnapshot }) {
   const avg = procs.reduce((s, p) => s + (p.maturity || 0), 0) / n;
   const poly = procs.map((p, i) => { const q = pt(i, (Math.max(0, Math.min(5, p.maturity)) / 5) * r); return `${q.x},${q.y}`; }).join(' ');
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Process maturity radar">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("Process maturity radar")}>
       {rings.map((ring) => (
         <polygon
           key={ring}

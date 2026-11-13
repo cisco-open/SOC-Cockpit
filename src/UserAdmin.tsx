@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Cisco Systems, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { t } from './i18n';
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Plus, UserPlus, X } from 'lucide-react';
@@ -36,33 +37,33 @@ function AddUserModal({ roles, onClose, onCreate }: { roles: UserRole[]; onClose
     <div className="ac-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div className="ac-modal" role="dialog" aria-modal="true" aria-labelledby="add-user-title">
         <header className="ac-modal-head">
-          <h2 id="add-user-title"><UserPlus size={18} /> Add local user</h2>
-          <button type="button" className="ac-icon-btn" onClick={onClose} aria-label="Close"><X size={18} /></button>
+          <h2 id="add-user-title"><UserPlus size={18} /> {t("Add local user")}</h2>
+          <button type="button" className="ac-icon-btn" onClick={onClose} aria-label={t("Close")}><X size={18} /></button>
         </header>
         <form className="ac-modal-body" onSubmit={(event) => void submit(event)}>
           <label className="ac-field">
-            <span>Username</span>
+            <span>{t("Username")}</span>
             <input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} autoComplete="off" autoFocus required />
           </label>
           <label className="ac-field">
-            <span>Email <em>(optional)</em></span>
+            <span>{t("Email")} <em>{t("(optional)")}</em></span>
             <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} autoComplete="off" />
           </label>
           <label className="ac-field">
-            <span>Temporary password</span>
+            <span>{t("Temporary password")}</span>
             <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} autoComplete="new-password" minLength={12} required />
-            <small>At least 12 characters. Share it with the user securely.</small>
+            <small>{t("At least 12 characters. Share it with the user securely.")}</small>
           </label>
           <label className="ac-field">
-            <span>Role</span>
+            <span>{t("Role")}</span>
             <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as UserRole })}>
-              {roles.map((role) => <option key={role} value={role}>{role}</option>)}
+              {roles.map((role) => <option key={role} value={role}>{t(role)}</option>)}
             </select>
           </label>
-          {error ? <div className="error-banner">{error}</div> : null}
+          {error ? <div className="error-banner">{t(error)}</div> : null}
           <footer className="ac-modal-foot">
-            <button type="button" className="ac-btn" onClick={onClose}>Cancel</button>
-            <button type="submit" className="ac-btn primary" disabled={busy}><Plus size={16} /> {busy ? 'Adding…' : 'Add user'}</button>
+            <button type="button" className="ac-btn" onClick={onClose}>{t("Cancel")}</button>
+            <button type="submit" className="ac-btn primary" disabled={busy}><Plus size={16} /> {busy ? t("Adding…") : t("Add user")}</button>
           </footer>
         </form>
       </div>
@@ -107,16 +108,16 @@ export function UserManagementTab({ currentUserId }: { currentUserId: number }) 
     <section className="ac-card">
       <header className="ac-card-head">
         <div>
-          <h2>Users</h2>
-          <p>{users.length} accounts{pending ? ` · ${pending} awaiting approval` : ''}</p>
+          <h2>{t("Users")}</h2>
+          <p>{users.length} {t("accounts")}{pending ? ` · ${pending} awaiting approval` : ''}</p>
         </div>
-        <button type="button" className="ac-btn primary" onClick={() => setAdding(true)}><Plus size={16} /> Add Local User</button>
+        <button type="button" className="ac-btn primary" onClick={() => setAdding(true)}><Plus size={16} /> {t("Add Local User")}</button>
       </header>
-      {error ? <div className="error-banner ac-inset">{error}</div> : null}
+      {error ? <div className="error-banner ac-inset">{t(error)}</div> : null}
       <div className="ac-table-wrap">
         <table className="ac-table">
           <thead>
-            <tr><th>Username</th><th>Name / email</th><th>Type</th><th>Role</th><th>Status</th><th className="ta-r">Actions</th></tr>
+            <tr><th>{t("Username")}</th><th>{t("Name / email")}</th><th>{t("Type")}</th><th>{t("Role")}</th><th>{t("Status")}</th><th className="ta-r">{t("Actions")}</th></tr>
           </thead>
           <tbody>
             {users.map((user) => {
@@ -124,31 +125,31 @@ export function UserManagementTab({ currentUserId }: { currentUserId: number }) 
               const status = statusOf(user);
               return (
                 <tr key={user.id}>
-                  <td><strong>{user.username}</strong>{isSelf ? <span className="ac-you">You</span> : null}</td>
+                  <td><strong>{user.username}</strong>{isSelf ? <span className="ac-you">{t("You")}</span> : null}</td>
                   <td>
                     <div>{user.displayName || '—'}</div>
                     {user.email ? <div className="ac-sub">{user.email}</div> : null}
                   </td>
-                  <td><span className="ac-chip">{user.accountType === 'ldap' ? 'Company (AD)' : 'Local'}</span></td>
+                  <td><span className="ac-chip">{user.accountType === 'ldap' ? t("Company (AD)") : t("Local")}</span></td>
                   <td>
-                    <select className="ac-inline-select" value={user.role} disabled={busy || isSelf} onChange={(event) => updateUser(user.id, { role: event.target.value as UserRole })} aria-label={`Role for ${user.username}`}>
-                      {roles.map((role) => <option key={role} value={role}>{role}</option>)}
+                    <select className="ac-inline-select" value={user.role} disabled={busy || isSelf} onChange={(event) => updateUser(user.id, { role: event.target.value as UserRole })} aria-label={t("Role for {{value0}}", { value0: user.username })}>
+                      {roles.map((role) => <option key={role} value={role}>{t(role)}</option>)}
                     </select>
                   </td>
-                  <td><span className={`ac-status ${status.tone}`}>{status.label}</span></td>
+                  <td><span className={`ac-status ${status.tone}`}>{t(status.label)}</span></td>
                   <td className="ta-r">
                     {isSelf ? <span className="ac-sub">—</span> : user.status === 'active'
-                      ? <button type="button" className="ac-btn danger" disabled={busy} onClick={() => updateUser(user.id, { status: 'inactive' })}>Block</button>
-                      : <button type="button" className="ac-btn" disabled={busy} onClick={() => updateUser(user.id, { status: 'active' })}>{status.tone === 'warn' ? 'Approve' : 'Unblock'}</button>}
+                      ? <button type="button" className="ac-btn danger" disabled={busy} onClick={() => updateUser(user.id, { status: 'inactive' })}>{t("Block")}</button>
+                      : <button type="button" className="ac-btn" disabled={busy} onClick={() => updateUser(user.id, { status: 'active' })}>{status.tone === 'warn' ? t("Approve") : t("Unblock")}</button>}
                   </td>
                 </tr>
               );
             })}
-            {data && users.length === 0 ? <tr><td colSpan={6} className="ac-empty">No users yet.</td></tr> : null}
+            {data && users.length === 0 ? <tr><td colSpan={6} className="ac-empty">{t("No users yet.")}</td></tr> : null}
           </tbody>
         </table>
       </div>
-      <p className="ac-foot-note">Company (Active Directory) users appear here after their first sign-in attempt.</p>
+      <p className="ac-foot-note">{t("Company (Active Directory) users appear here after their first sign-in attempt.")}</p>
       {adding ? <AddUserModal roles={roles} onClose={() => setAdding(false)} onCreate={createUser} /> : null}
     </section>
   );
