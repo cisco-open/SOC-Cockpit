@@ -114,25 +114,25 @@ export function monthPeriod(anchor: string): Period {
   return { from: dateKey(first), to: dateKey(last) };
 }
 
-export function formatPeriod(period: Period): string {
+export function formatPeriod(period: Period, locale?: string): string {
   const from = parseStamp(period.from);
   const to = parseStamp(period.to);
   if (!from || !to) return '';
   const fullMonth = from.getDate() === 1 && to.getDate() === new Date(to.getFullYear(), to.getMonth() + 1, 0).getDate()
     && from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear();
-  if (fullMonth) return from.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  if (fullMonth) return from.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
   const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', year: 'numeric' };
-  return `${from.toLocaleDateString(undefined, options)} – ${to.toLocaleDateString(undefined, options)}`;
+  return `${from.toLocaleDateString(locale, options)} – ${to.toLocaleDateString(locale, options)}`;
 }
 
-export function formatDate(key: string): string {
+export function formatDate(key: string, locale?: string): string {
   const date = parseStamp(key);
-  return date ? date.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : key;
+  return date ? date.toLocaleDateString(locale, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : key;
 }
 
-export function formatStamp(value: string): string {
+export function formatStamp(value: string, locale?: string): string {
   const date = parseStamp(value);
-  return date ? `${date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })} ${pad(date.getHours())}:${pad(date.getMinutes())}` : '—';
+  return date ? `${date.toLocaleDateString(locale, { day: '2-digit', month: 'short' })} ${pad(date.getHours())}:${pad(date.getMinutes())}` : '—';
 }
 
 function minutesBetween(start: string, end: string): number | null {
@@ -159,8 +159,8 @@ export function percent(part: number, whole: number): number | null {
   return whole > 0 ? Math.round((part / whole) * 1000) / 10 : null;
 }
 
-export function formatPercent(value: number | null): string {
-  return value === null ? '—' : `${value % 1 === 0 ? value.toFixed(0) : value.toFixed(1)}%`;
+export function formatPercent(value: number | null, locale?: string): string {
+  return value === null ? '—' : `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(value)}%`;
 }
 
 export interface Stats {

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Cisco Systems, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { LanguageSwitcher } from './LanguageSwitcher';
+import { t, getLocale } from './i18n';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -167,11 +169,11 @@ function shiftMonth(anchorDate: string, delta: number) {
 }
 
 function monthLabel(anchorDate: string) {
-  return new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' }).format(new Date(`${anchorDate}T00:00:00`));
+  return new Intl.DateTimeFormat(getLocale(), { month: 'long', year: 'numeric' }).format(new Date(`${anchorDate}T00:00:00`));
 }
 
 function dayLabel(anchorDate: string) {
-  return new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(new Date(`${anchorDate}T00:00:00`));
+  return new Intl.DateTimeFormat(getLocale(), { weekday: 'short' }).format(new Date(`${anchorDate}T00:00:00`));
 }
 
 function shiftDay(anchorDate: string, delta: number) {
@@ -189,15 +191,15 @@ function daysAround(anchorDate: string, before: number, after: number) {
 }
 
 function shortDateLabel(anchorDate: string) {
-  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' }).format(new Date(`${anchorDate}T00:00:00`));
+  return new Intl.DateTimeFormat(getLocale(), { day: '2-digit', month: 'short' }).format(new Date(`${anchorDate}T00:00:00`));
 }
 
 function dayNumberLabel(anchorDate: string) {
-  return new Intl.DateTimeFormat('en-GB', { day: '2-digit' }).format(new Date(`${anchorDate}T00:00:00`));
+  return new Intl.DateTimeFormat(getLocale(), { day: '2-digit' }).format(new Date(`${anchorDate}T00:00:00`));
 }
 
 function shortMonthLabel(anchorDate: string) {
-  return new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(new Date(`${anchorDate}T00:00:00`));
+  return new Intl.DateTimeFormat(getLocale(), { month: 'short' }).format(new Date(`${anchorDate}T00:00:00`));
 }
 
 function isDateKey(value: string) {
@@ -248,8 +250,8 @@ function Panel({ title, meta, span = 4, className, children }: { title: string; 
   return (
     <section className={className ? `panel ${className}` : 'panel'} style={{ gridColumn: `span ${span}` }}>
       <header className="panel-head">
-        <h2>{title}</h2>
-        {meta ? <div className="panel-meta">{meta}</div> : null}
+        <h2>{t(title)}</h2>
+        {meta ? <div className="panel-meta">{typeof meta === 'string' ? t(meta) : meta}</div> : null}
       </header>
       <div className="panel-body">{children}</div>
     </section>
@@ -259,7 +261,7 @@ function Panel({ title, meta, span = 4, className, children }: { title: string; 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="field">
-      <span>{label}</span>
+      <span>{t(label)}</span>
       {children}
     </label>
   );
@@ -267,7 +269,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function ToggleSwitch({ checked, onChange, ariaLabel }: { checked: boolean; onChange: (next: boolean) => void; ariaLabel: string }) {
   return (
-    <button type="button" role="switch" aria-checked={checked} aria-label={ariaLabel} className={checked ? 'switch on' : 'switch'} onClick={() => onChange(!checked)}>
+    <button type="button" role="switch" aria-checked={checked} aria-label={t(ariaLabel)} className={checked ? 'switch on' : 'switch'} onClick={() => onChange(!checked)}>
       <span className="switch-knob" />
     </button>
   );
@@ -275,7 +277,7 @@ function ToggleSwitch({ checked, onChange, ariaLabel }: { checked: boolean; onCh
 
 function DeleteButton({ onClick, label }: { onClick: () => void; label: string }) {
   return (
-    <button type="button" className="icon-btn danger" onClick={onClick} title={label} aria-label={label}>
+    <button type="button" className="icon-btn danger" onClick={onClick} title={t(label)} aria-label={t(label)}>
       <Trash2 size={14} />
     </button>
   );
@@ -283,7 +285,7 @@ function DeleteButton({ onClick, label }: { onClick: () => void; label: string }
 
 function EditButton({ onClick, label }: { onClick: () => void; label: string }) {
   return (
-    <button type="button" className="icon-btn" onClick={onClick} title={label} aria-label={label}>
+    <button type="button" className="icon-btn" onClick={onClick} title={t(label)} aria-label={t(label)}>
       <Pencil size={14} />
     </button>
   );
@@ -418,7 +420,7 @@ function KeoInsight({ question, enabled, cacheKey }: { question: string; enabled
   }
 
   if (!enabled) {
-    return <div className="widget-empty">Keo is unavailable — configure the LLM to enable analysis.</div>;
+    return <div className="widget-empty">{t("Keo is unavailable — configure the LLM to enable analysis.")}</div>;
   }
 
   return (
@@ -426,13 +428,13 @@ function KeoInsight({ question, enabled, cacheKey }: { question: string; enabled
       {answer ? (
         <div className="keo-insight-body"><AdvisorMarkdown content={answer} emptyText="" compact /></div>
       ) : (
-        <p className="keo-insight-hint">{loading ? 'Keo is analysing the cockpit…' : 'Keo will analyse the cockpit shortly.'}</p>
+        <p className="keo-insight-hint">{loading ? t("Keo is analysing the cockpit…") : t("Keo will analyse the cockpit shortly.")}</p>
       )}
-      {error ? <div className="assistant-error">{error}</div> : null}
+      {error ? <div className="assistant-error">{t(error)}</div> : null}
       <div className="keo-insight-foot">
         <span className="keo-insight-stamp">{stamp ? `Updated ${formatStamp(new Date(stamp).toISOString())}` : ''}</span>
-        <button type="button" className="ghost-btn keo-insight-btn" onClick={() => void refresh()} disabled={loading} title="Refresh now">
-          <RefreshCw size={12} /> {loading ? 'Analysing…' : 'Refresh'}
+        <button type="button" className="ghost-btn keo-insight-btn" onClick={() => void refresh()} disabled={loading} title={t("Refresh now")}>
+          <RefreshCw size={12} /> {loading ? t("Analysing…") : t("Refresh")}
         </button>
       </div>
     </div>
@@ -449,7 +451,7 @@ function useClock() {
 }
 
 function formatClock(now: Date, timeZone?: string) {
-  return new Intl.DateTimeFormat('en-GB', {
+  return new Intl.DateTimeFormat(getLocale(), {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -459,7 +461,7 @@ function formatClock(now: Date, timeZone?: string) {
 }
 
 function formatDate(now: Date, timeZone?: string) {
-  return new Intl.DateTimeFormat('en-GB', {
+  return new Intl.DateTimeFormat(getLocale(), {
     weekday: 'short',
     day: '2-digit',
     month: 'short',
@@ -469,7 +471,7 @@ function formatDate(now: Date, timeZone?: string) {
 }
 
 function formatStamp(value: string) {
-  return new Date(value).toLocaleString('en-GB', {
+  return new Date(value).toLocaleString(getLocale(), {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
@@ -483,7 +485,7 @@ function monthInputValue(anchorDate: string) {
 }
 
 function monthKeyLabel(anchorDate: string) {
-  return new Intl.DateTimeFormat('en-GB', { month: 'short', year: 'numeric' }).format(new Date(`${anchorDate}T00:00:00`));
+  return new Intl.DateTimeFormat(getLocale(), { month: 'short', year: 'numeric' }).format(new Date(`${anchorDate}T00:00:00`));
 }
 
 function formatMinutes(value: number) {
@@ -774,14 +776,14 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
     )).sort((left, right) => right.localeCompare(left))[0];
 
     if (!sourceDate) {
-      window.alert('No incomplete standup tasks were found on any previous day to carry over.');
+      window.alert(t("No incomplete standup tasks were found on any previous day to carry over."));
       return;
     }
 
     const pending = snapshot?.matrixTasks.filter((item) => item.taskDate === sourceDate && item.status !== 'Completed') ?? [];
     const confirmed = window.confirm(
-      `Carry over ${pending.length} incomplete task(s) from ${shortDateLabel(sourceDate)} into ${shortDateLabel(target)}?\n\n`
-      + 'The incomplete tasks will be copied into the selected day as "Not Completed". The original tasks stay unchanged, and duplicates already on the target day are skipped.',
+      t('Carry over {{count}} incomplete tasks from {{from}} into {{to}}?', { count: pending.length, from: shortDateLabel(sourceDate), to: shortDateLabel(target) }) + '\n\n'
+      + t('The incomplete tasks will be copied into the selected day as "Not Completed". The original tasks stay unchanged, and duplicates already on the target day are skipped.'),
     );
     if (!confirmed) {
       return;
@@ -928,7 +930,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
   const planningDates = useMemo(() => nextPlanningDates(10), []);
   const standupDates = useMemo(() => daysAround(planningDate, 3, 6), [planningDate]);
   const summary = useMemo(() => (snapshot ? computeSummary(snapshot, planningDate, readinessLevers) : null), [snapshot, planningDate, readinessLevers]);
-  const feed = useMemo(() => (snapshot ? buildFeed(snapshot) : []), [snapshot]);
+  const feed = useMemo(() => (snapshot ? buildFeed(snapshot) : []), [snapshot, getLocale()]);
   const plannerMonthDates = useMemo(() => monthDates(planningDate), [planningDate]);
   const todayIso = isoDate(0);
   const noteMonthDates = useMemo(() => monthDates(noteForm.noteDate), [noteForm.noteDate]);
@@ -974,14 +976,14 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
     });
 
     const configuredOrder = snapshot.settings.workforceChannelOrder.filter((channel) => grouped.has(channel));
-    const unorderedChannels = Array.from(grouped.keys()).filter((channel) => !configuredOrder.includes(channel)).sort((left, right) => left.localeCompare(right, 'en-GB'));
+    const unorderedChannels = Array.from(grouped.keys()).filter((channel) => !configuredOrder.includes(channel)).sort((left, right) => left.localeCompare(right, getLocale()));
     return [...configuredOrder, ...unorderedChannels].map((channel) => ({
       channel,
-      staff: (grouped.get(channel) ?? []).sort((left, right) => Number(right.isLead) - Number(left.isLead) || left.name.localeCompare(right.name, 'en-GB')),
+      staff: (grouped.get(channel) ?? []).sort((left, right) => Number(right.isLead) - Number(left.isLead) || left.name.localeCompare(right.name, getLocale())),
     }));
   }, [snapshot, rosterStaff, staffContacts]);
-  const leadNames = useMemo(() => Array.from(new Set(staffContacts.filter((item) => item.isLead).map((item) => item.name))).sort((left, right) => left.localeCompare(right, 'en-GB')), [staffContacts]);
-  const assigneeNames = useMemo(() => Array.from(new Set(staffContacts.map((item) => item.name))).sort((left, right) => left.localeCompare(right, 'en-GB')), [staffContacts]);
+  const leadNames = useMemo(() => Array.from(new Set(staffContacts.filter((item) => item.isLead).map((item) => item.name))).sort((left, right) => left.localeCompare(right, getLocale())), [staffContacts, getLocale()]);
+  const assigneeNames = useMemo(() => Array.from(new Set(staffContacts.map((item) => item.name))).sort((left, right) => left.localeCompare(right, getLocale())), [staffContacts, getLocale()]);
   const rosterCellMap = useMemo(() => {
     const map = new Map<string, RosterAssignment>();
     snapshot?.rosterAssignments.forEach((item) => {
@@ -997,7 +999,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
     return (
       <div className="loading-screen">
         <RefreshCw className="spin" size={18} />
-        <span>Loading SOC Cockpit...</span>
+        <span>{t("Loading SOC Cockpit...")}</span>
       </div>
     );
   }
@@ -1012,7 +1014,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
     existing.push(item);
     groups.set(key, existing);
     return groups;
-  }, new Map<string, typeof matrixForDate>()).entries()).sort((left, right) => left[0].localeCompare(right[0], 'en-GB'));
+  }, new Map<string, typeof matrixForDate>()).entries()).sort((left, right) => left[0].localeCompare(right[0], getLocale()));
   const noteDatesInMonth = new Set(app.notes.filter((item) => item.noteDate.startsWith(`${monthInputValue(noteForm.noteDate)}-`)).map((item) => item.noteDate));
   const dbConnected = app.settings.dataSource === 'server-db';
   const llmConnected = app.settings.llmConfigured;
@@ -1027,13 +1029,13 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
     return (
       <div className="advisor-meta">
         {loading ? (
-          <div className="advisor-progress" aria-live="polite" aria-label="Advisor refresh in progress">
-            <span className="advisor-progress-label">Processing</span>
+          <div className="advisor-progress" aria-live="polite" aria-label={t("Advisor refresh in progress")}>
+            <span className="advisor-progress-label">{t("Processing")}</span>
             <span className="advisor-progress-bar" aria-hidden="true"><span className="advisor-progress-fill" /></span>
           </div>
         ) : null}
-        {withDate ? <input type="date" className="advisor-date" value={advisorDate} max={isoDate(0)} onChange={(event) => setAdvisorDate(event.target.value)} disabled={loading} title="Executive update date" /> : null}
-        <button className="ghost-btn" type="button" onClick={() => void generateAdvisorBrief(withDate ? advisorDate : isoDate(0))} disabled={loading}><Sparkles size={12} /> {actionLabel}</button>
+        {withDate ? <input type="date" className="advisor-date" value={advisorDate} max={isoDate(0)} onChange={(event) => setAdvisorDate(event.target.value)} disabled={loading} title={t("Executive update date")} /> : null}
+        <button className="ghost-btn" type="button" onClick={() => void generateAdvisorBrief(withDate ? advisorDate : isoDate(0))} disabled={loading}><Sparkles size={12} /> {t(actionLabel)}</button>
       </div>
     );
   }
@@ -1059,8 +1061,8 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
         {cards.map((card) => (
           <section className={card.className ? `command-card ${card.className}` : 'command-card'} key={card.title}>
             <header>
-              <h3>{card.title}</h3>
-              <span className="cmm-tag">{card.tag}</span>
+              <h3>{t(card.title)}</h3>
+              <span className="cmm-tag">{t(card.tag)}</span>
             </header>
             <div className="command-body">{card.body}</div>
           </section>
@@ -1146,23 +1148,23 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
 
     return (
       <div className={controlsCollapsed ? 'workforce-layout collapsed' : 'workforce-layout'}>
-        <Panel title="Rotation planner" span={10} className="workforce-planner" meta={<span className="muted">drag across a staff row to fill the month</span>}>
+        <Panel title={t("Rotation planner")} span={10} className="workforce-planner" meta={<span className="muted">{t("drag across a staff row to fill the month")}</span>}>
           <div className="planner-toolbar">
             <div className="planner-toolbar-group">
-              <button type="button" className="ghost-btn" onClick={() => setPlanningDate(shiftMonth(planningDate, -1))}>Prev month</button>
+              <button type="button" className="ghost-btn" onClick={() => setPlanningDate(shiftMonth(planningDate, -1))}>{t("Prev month")}</button>
               <strong className="planner-month">{monthLabel(planningDate)}</strong>
-              <button type="button" className="ghost-btn" onClick={() => setPlanningDate(shiftMonth(planningDate, 1))}>Next month</button>
+              <button type="button" className="ghost-btn" onClick={() => setPlanningDate(shiftMonth(planningDate, 1))}>{t("Next month")}</button>
             </div>
             <div className="planner-toolbar-group right">
-              <span className="muted">{rosterStaff.length} staff · {filledCells} assigned cells</span>
-              <button type="button" className="ghost-btn" onClick={printPlannerExport}>Export PDF</button>
+              <span className="muted">{rosterStaff.length} {t("staff ·")} {filledCells} {t("assigned cells")}</span>
+              <button type="button" className="ghost-btn" onClick={printPlannerExport}>{t("Export PDF")}</button>
               <button type="button" className={plannerEditMode ? 'primary-btn' : 'ghost-btn'} onClick={() => setPlannerEditMode((current) => !current)}>
-                {plannerEditMode ? 'Exit edit mode' : 'Enter edit mode'}
+                {plannerEditMode ? t("Exit edit mode") : t("Enter edit mode")}
               </button>
             </div>
           </div>
 
-          <div className="planner-print-key" aria-label="Planner legend">
+          <div className="planner-print-key" aria-label={t("Planner legend")}>
             {rosterLabels.map((item) => (
               <div className="planner-print-key-item" key={item.code}>
                 <span className="planner-print-key-swatch" style={{ backgroundColor: item.fill, color: item.textColor }}>{item.code}</span>
@@ -1175,7 +1177,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
             <table className="planner-grid">
               <thead>
                 <tr>
-                  <th className="planner-staff-head">Staff</th>
+                  <th className="planner-staff-head">{t("Staff")}</th>
                   {plannerMonthDates.map((rosterDate) => (
                     <th key={rosterDate} className={`planner-day-head${rosterDate === planningDate ? ' active' : ''}${rosterDate === todayIso ? ' today' : ''}`}>
                       <span>{dayLabel(rosterDate)}</span>
@@ -1190,13 +1192,13 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                   <Fragment key={group.channel}>
                     <tr className="planner-channel-row">
                       <th className="planner-channel-name">{group.channel}</th>
-                      <td className="planner-channel-fill" colSpan={plannerMonthDates.length}>{group.staff.length} staff</td>
+                      <td className="planner-channel-fill" colSpan={plannerMonthDates.length}>{group.staff.length} {t("staff")}</td>
                     </tr>
                     {group.staff.map((member) => (
                       <tr key={member.name}>
-                        <th className="planner-staff-name" title={`${member.name}${member.role ? ` · ${member.role}` : ''}`}>
+                        <th className="planner-staff-name" title={t(`${member.name}${member.role ? ` · ${member.role}` : ''}`)}>
                           <span>{member.name}</span>
-                          {member.isLead ? <small>Lead</small> : null}
+                          {member.isLead ? <small>{t("Lead")}</small> : null}
                         </th>
                         {plannerMonthDates.map((rosterDate) => {
                           const label = resolveCellLabel(member.name, rosterDate);
@@ -1220,7 +1222,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                                   stagePlannerCell(member.name, rosterDate);
                                 }
                               }}
-                              title={label ? `${member.name} · ${rosterDate} · ${label.label} ${label.hours ? `(${label.hours})` : ''}` : `${member.name} · ${rosterDate} · Unassigned`}
+                              title={t(label ? `${member.name} · ${rosterDate} · ${label.label} ${label.hours ? `(${label.hours})` : ''}` : `${member.name} · ${rosterDate} · Unassigned`)}
                             >
                               <span className="planner-cell-code">{label?.code ?? ''}</span>
                             </td>
@@ -1233,76 +1235,76 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
               </tbody>
             </table>
           </div>
-          <div className="planner-footnote">Edit mode applies the currently selected label by click-dragging across one staff row at a time. Choose Clear in the palette to wipe cells.</div>
+          <div className="planner-footnote">{t("Edit mode applies the currently selected label by click-dragging across one staff row at a time. Choose Clear in the palette to wipe cells.")}</div>
         </Panel>
         {controlsCollapsed ? (
           <aside className="workforce-controls-rail">
-            <button type="button" className="controls-rail-btn" onClick={() => setControlsCollapsed(false)} title="Expand planner controls" aria-label="Expand planner controls">
+            <button type="button" className="controls-rail-btn" onClick={() => setControlsCollapsed(false)} title={t("Expand planner controls")} aria-label={t("Expand planner controls")}>
               <ChevronLeft size={16} />
-              <span className="controls-rail-label">Planner controls</span>
+              <span className="controls-rail-label">{t("Planner controls")}</span>
             </button>
           </aside>
         ) : (
-        <Panel title="Planner controls" span={2} className="workforce-controls" meta={<button type="button" className="icon-btn" onClick={() => setControlsCollapsed(true)} title="Collapse controls" aria-label="Collapse controls"><ChevronRight size={14} /></button>}>
+        <Panel title={t("Planner controls")} span={2} className="workforce-controls" meta={<button type="button" className="icon-btn" onClick={() => setControlsCollapsed(true)} title={t("Collapse controls")} aria-label={t("Collapse controls")}><ChevronRight size={14} /></button>}>
           <div className="planner-side">
             <section className="planner-side-section">
-              <div className="planner-side-title">Fill palette</div>
+              <div className="planner-side-title">{t("Fill palette")}</div>
               <div className="planner-palette">
                 <button type="button" className={selectedRosterCode === '__clear__' ? 'palette-btn active clear' : 'palette-btn clear'} onClick={() => setSelectedRosterCode('__clear__')}>
                   <span className="palette-swatch empty" />
-                  <span>Clear</span>
+                  <span>{t("Clear")}</span>
                 </button>
                 {rosterLabels.map((item) => (
                   <button key={item.code} type="button" className={selectedRosterCode === item.code ? 'palette-btn active' : 'palette-btn'} onClick={() => setSelectedRosterCode(item.code)}>
                     <span className="palette-swatch" style={{ backgroundColor: item.fill, color: item.textColor }}>{item.code}</span>
                     <span>{item.label}</span>
-                    <small>{item.hours || item.status}</small>
+                    <small>{item.hours || t(item.status)}</small>
                   </button>
                 ))}
               </div>
             </section>
 
             <section className="planner-side-section">
-              <div className="planner-side-title">Create shift label</div>
+              <div className="planner-side-title">{t("Create shift label")}</div>
               <div className="form-stack compact">
                 <div className="form-grid two">
-                  <Field label="Code"><input value={rosterLabelForm.code} onChange={(event) => setRosterLabelForm({ ...rosterLabelForm, code: event.target.value.toUpperCase() })} placeholder="D12" maxLength={8} /></Field>
-                  <Field label="Label"><input value={rosterLabelForm.label} onChange={(event) => setRosterLabelForm({ ...rosterLabelForm, label: event.target.value })} placeholder="Day" /></Field>
+                  <Field label={t("Code")}><input value={rosterLabelForm.code} onChange={(event) => setRosterLabelForm({ ...rosterLabelForm, code: event.target.value.toUpperCase() })} placeholder={t("D12")} maxLength={8} /></Field>
+                  <Field label={t("Label")}><input value={rosterLabelForm.label} onChange={(event) => setRosterLabelForm({ ...rosterLabelForm, label: event.target.value })} placeholder={t("Day")} /></Field>
                 </div>
-                <Field label="Hours or note"><input value={rosterLabelForm.hours} onChange={(event) => setRosterLabelForm({ ...rosterLabelForm, hours: event.target.value })} placeholder="07:00-19:00" /></Field>
+                <Field label={t("Hours or note")}><input value={rosterLabelForm.hours} onChange={(event) => setRosterLabelForm({ ...rosterLabelForm, hours: event.target.value })} placeholder="07:00-19:00" /></Field>
                 <div className="form-grid two">
-                  <Field label="Status"><select value={rosterLabelForm.status} onChange={(event) => setRosterLabelForm({ ...rosterLabelForm, status: event.target.value as typeof rosterLabelForm.status })}>{rosterStatusOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
-                  <Field label="Health"><select value={rosterLabelForm.health} onChange={(event) => setRosterLabelForm({ ...rosterLabelForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
+                  <Field label={t("Status")}><select value={rosterLabelForm.status} onChange={(event) => setRosterLabelForm({ ...rosterLabelForm, status: event.target.value as typeof rosterLabelForm.status })}>{rosterStatusOptions.map((item) => <option key={item} value={item}>{t(item)}</option>)}</select></Field>
+                  <Field label={t("Health")}><select value={rosterLabelForm.health} onChange={(event) => setRosterLabelForm({ ...rosterLabelForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{t(item)}</option>)}</select></Field>
                 </div>
                 <div className="form-grid two">
-                  <Field label="Fill"><input type="color" value={rosterLabelForm.fill} onChange={(event) => setRosterLabelForm({ ...rosterLabelForm, fill: event.target.value })} /></Field>
-                  <Field label="Text"><input type="color" value={rosterLabelForm.textColor} onChange={(event) => setRosterLabelForm({ ...rosterLabelForm, textColor: event.target.value })} /></Field>
+                  <Field label={t("Fill")}><input type="color" value={rosterLabelForm.fill} onChange={(event) => setRosterLabelForm({ ...rosterLabelForm, fill: event.target.value })} /></Field>
+                  <Field label={t("Text")}><input type="color" value={rosterLabelForm.textColor} onChange={(event) => setRosterLabelForm({ ...rosterLabelForm, textColor: event.target.value })} /></Field>
                 </div>
-                <button type="button" className="primary-btn" onClick={() => void (editing.rosterLabel ? saveRosterLabel() : addRosterLabel())} disabled={Boolean(busy)}><Plus size={14} /> {editing.rosterLabel ? 'Save label' : 'Add label'}</button>
-                {editing.rosterLabel ? <button type="button" className="ghost-btn" onClick={() => { setRosterLabelForm(defaultRosterLabelForm); setEditor('rosterLabel', null); }}>Cancel label edit</button> : null}
+                <button type="button" className="primary-btn" onClick={() => void (editing.rosterLabel ? saveRosterLabel() : addRosterLabel())} disabled={Boolean(busy)}><Plus size={14} /> {editing.rosterLabel ? t("Save label") : t("Add label")}</button>
+                {editing.rosterLabel ? <button type="button" className="ghost-btn" onClick={() => { setRosterLabelForm(defaultRosterLabelForm); setEditor('rosterLabel', null); }}>{t("Cancel label edit")}</button> : null}
               </div>
               <div className="mini-list">
                 {rosterLabels.map((item) => (
                   <div className="mini-list-row" key={item.code}>
                     <span className="palette-swatch" style={{ backgroundColor: item.fill, color: item.textColor }}>{item.code}</span>
                     <span>{item.label}</span>
-                    <EditButton onClick={() => { setRosterLabelForm(item); setEditor('rosterLabel', item.code); }} label={`Edit ${item.code}`} />
+                    <EditButton onClick={() => { setRosterLabelForm(item); setEditor('rosterLabel', item.code); }} label={t("Edit {{value0}}", { value0: item.code })} />
                   </div>
                 ))}
               </div>
             </section>
 
             <section className="planner-side-section">
-              <div className="planner-side-title">Team order</div>
-              <div className="field-hint">Staff rows come from Directory records where scope is Staff. Use these controls to set the sub team order.</div>
+              <div className="planner-side-title">{t("Team order")}</div>
+              <div className="field-hint">{t("Staff rows come from Directory records where scope is Staff. Use these controls to set the sub team order.")}</div>
               <div className="mini-list">
                 {workforceGroups.map((group, index) => (
                   <div className="mini-list-row channel-order-row" key={group.channel}>
                     <span>{group.channel}</span>
-                    <small>{group.staff.length} staff</small>
+                    <small>{group.staff.length} {t("staff")}</small>
                     <div className="action-row">
-                      <button type="button" className="icon-btn" onClick={() => void moveChannel(group.channel, -1)} disabled={index === 0 || Boolean(busy)} aria-label={`Move ${group.channel} up`}>Up</button>
-                      <button type="button" className="icon-btn" onClick={() => void moveChannel(group.channel, 1)} disabled={index === workforceGroups.length - 1 || Boolean(busy)} aria-label={`Move ${group.channel} down`}>Down</button>
+                      <button type="button" className="icon-btn" onClick={() => void moveChannel(group.channel, -1)} disabled={index === 0 || Boolean(busy)} aria-label={t("Move {{value0}} up", { value0: group.channel })}>{t("Up")}</button>
+                      <button type="button" className="icon-btn" onClick={() => void moveChannel(group.channel, 1)} disabled={index === workforceGroups.length - 1 || Boolean(busy)} aria-label={t("Move {{value0}} down", { value0: group.channel })}>{t("Down")}</button>
                     </div>
                   </div>
                 ))}
@@ -1333,7 +1335,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
 
     return (
       <div className="grid">
-        <Panel title="Eisenhower task intake" span={4} className="standup-intake" meta={<span className="muted">capture standup tasks for the selected day</span>}>
+        <Panel title={t("Eisenhower task intake")} span={4} className="standup-intake" meta={<span className="muted">{t("capture standup tasks for the selected day")}</span>}>
           <form className="form-stack" onSubmit={(event) => {
             event.preventDefault();
             if (editing.matrixTask) {
@@ -1342,64 +1344,64 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
             }
             void createRecord('matrixTask', matrixForm, () => resetMatrixForm(planningDate));
           }}>
-            <Field label="Standup date"><input type="date" value={matrixForm.taskDate} onChange={(event) => setMatrixForm({ ...matrixForm, taskDate: event.target.value })} required /></Field>
-            <Field label="Task description"><textarea ref={matrixTitleRef} rows={3} value={matrixForm.title} onChange={(event) => setMatrixForm({ ...matrixForm, title: event.target.value })} required /></Field>
+            <Field label={t("Standup date")}><input type="date" value={matrixForm.taskDate} onChange={(event) => setMatrixForm({ ...matrixForm, taskDate: event.target.value })} required /></Field>
+            <Field label={t("Task description")}><textarea ref={matrixTitleRef} rows={3} value={matrixForm.title} onChange={(event) => setMatrixForm({ ...matrixForm, title: event.target.value })} required /></Field>
             <div className="form-grid two">
-              <Field label="Lead">
+              <Field label={t("Lead")}>
                 <select value={matrixForm.lead} onChange={(event) => setMatrixForm({ ...matrixForm, lead: event.target.value })} required>
-                  <option value="" disabled>Select lead</option>
+                  <option value="" disabled>{t("Select lead")}</option>
                   {leadNames.map((name) => <option key={name} value={name}>{name}</option>)}
                   {matrixForm.lead && !leadNames.includes(matrixForm.lead) ? <option value={matrixForm.lead}>{matrixForm.lead}</option> : null}
                 </select>
               </Field>
-              <Field label="Assignee">
+              <Field label={t("Assignee")}>
                 <select value={matrixForm.assignee} onChange={(event) => setMatrixForm({ ...matrixForm, assignee: event.target.value })}>
-                  <option value="">Unassigned</option>
+                  <option value="">{t("Unassigned")}</option>
                   {assigneeNames.map((name) => <option key={name} value={name}>{name}</option>)}
                   {matrixForm.assignee && !assigneeNames.includes(matrixForm.assignee) ? <option value={matrixForm.assignee}>{matrixForm.assignee}</option> : null}
                 </select>
               </Field>
             </div>
-            <Field label="Objective (optional)">
+            <Field label={t("Objective (optional)")}>
               <select value={matrixForm.objectiveId} onChange={(event) => setMatrixForm({ ...matrixForm, objectiveId: Number(event.target.value) })}>
-                <option value={0}>No objective</option>
-                {app.objectives.map((obj) => <option key={obj.id} value={obj.id}>{`OBJ-${obj.id} · ${obj.title}`}</option>)}
+                <option value={0}>{t("No objective")}</option>
+                {app.objectives.map((obj) => <option key={obj.id} value={obj.id}>{t("OBJ-{{value0}} · {{value1}}", { value0: obj.id, value1: obj.title })}</option>)}
               </select>
             </Field>
             <div className="form-grid two">
-              <Field label="Minutes"><input type="number" min={0} step={5} placeholder="0" value={matrixForm.durationMinutes || ''} onChange={(event) => setMatrixForm({ ...matrixForm, durationMinutes: Number(event.target.value) || 0 })} /></Field>
-              <Field label="Status"><select value={matrixForm.status} onChange={(event) => setMatrixForm({ ...matrixForm, status: event.target.value as MatrixStatus })}>{matrixStatusOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
+              <Field label={t("Minutes")}><input type="number" min={0} step={5} placeholder="0" value={matrixForm.durationMinutes || ''} onChange={(event) => setMatrixForm({ ...matrixForm, durationMinutes: Number(event.target.value) || 0 })} /></Field>
+              <Field label={t("Status")}><select value={matrixForm.status} onChange={(event) => setMatrixForm({ ...matrixForm, status: event.target.value as MatrixStatus })}>{matrixStatusOptions.map((item) => <option key={item} value={item}>{t(item)}</option>)}</select></Field>
             </div>
             <div className="toggle-grid">
-              <label className="toggle-card"><input type="checkbox" checked={matrixForm.urgency} onChange={(event) => setMatrixForm({ ...matrixForm, urgency: event.target.checked })} />Urgent</label>
-              <label className="toggle-card"><input type="checkbox" checked={matrixForm.importance} onChange={(event) => setMatrixForm({ ...matrixForm, importance: event.target.checked })} />Important</label>
+              <label className="toggle-card"><input type="checkbox" checked={matrixForm.urgency} onChange={(event) => setMatrixForm({ ...matrixForm, urgency: event.target.checked })} />{t("Urgent")}</label>
+              <label className="toggle-card"><input type="checkbox" checked={matrixForm.importance} onChange={(event) => setMatrixForm({ ...matrixForm, importance: event.target.checked })} />{t("Important")}</label>
             </div>
             <div className="decision-preview">
-              <strong>{resolveQuadrant(matrixForm.urgency, matrixForm.importance)}</strong>
-              <span>{quadrantDescriptions[resolveQuadrant(matrixForm.urgency, matrixForm.importance)]}</span>
+              <strong>{t(resolveQuadrant(matrixForm.urgency, matrixForm.importance))}</strong>
+              <span>{t(quadrantDescriptions[resolveQuadrant(matrixForm.urgency, matrixForm.importance)])}</span>
             </div>
-            <Field label="Notes"><textarea rows={3} value={matrixForm.notes} onChange={(event) => setMatrixForm({ ...matrixForm, notes: event.target.value })} placeholder="Context, dependencies, blockers, or stand-down follow-up" /></Field>
-            <Field label="Due time (optional)"><input value={matrixForm.dueTime} onChange={(event) => setMatrixForm({ ...matrixForm, dueTime: event.target.value })} placeholder="17:00" /></Field>
-            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.matrixTask ? 'Save standup item' : 'Add standup item'}</button>
-            {editing.matrixTask ? <button className="ghost-btn" type="button" onClick={() => { resetMatrixForm(planningDate); setEditor('matrixTask', null); }}>Cancel edit</button> : null}
+            <Field label={t("Notes")}><textarea rows={3} value={matrixForm.notes} onChange={(event) => setMatrixForm({ ...matrixForm, notes: event.target.value })} placeholder={t("Context, dependencies, blockers, or stand-down follow-up")} /></Field>
+            <Field label={t("Due time (optional)")}><input value={matrixForm.dueTime} onChange={(event) => setMatrixForm({ ...matrixForm, dueTime: event.target.value })} placeholder="17:00" /></Field>
+            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.matrixTask ? t("Save standup item") : t("Add standup item")}</button>
+            {editing.matrixTask ? <button className="ghost-btn" type="button" onClick={() => { resetMatrixForm(planningDate); setEditor('matrixTask', null); }}>{t("Cancel edit")}</button> : null}
           </form>
         </Panel>
 
-        <Panel title="Daily standup overview" span={8} className="standup-print-panel" meta={<span className="muted">{shortDateLabel(planningDate)}</span>}>
+        <Panel title={t("Daily standup overview")} span={8} className="standup-print-panel" meta={<span className="muted">{shortDateLabel(planningDate)}</span>}>
           <header className="standup-print-header">
-            <h1>SOC Daily Standup Tasks</h1>
-            <p>{shortDateLabel(planningDate)} · {matrixForDate.length} task(s) · {standupGroups.length} lead(s)</p>
-            <div className="standup-print-signoff"><span>Standup lead: ____________________</span><span>Completed at: ____________________</span></div>
+            <h1>{t("SOC Daily Standup Tasks")}</h1>
+            <p>{shortDateLabel(planningDate)} · {matrixForDate.length} {t("task(s) ·")} {standupGroups.length} {t("lead(s)")}</p>
+            <div className="standup-print-signoff"><span>{t("Standup lead: ____________________")}</span><span>{t("Completed at: ____________________")}</span></div>
           </header>
           <div className="standup-date-nav pad">
-            <button type="button" className="ghost-btn" onClick={() => { const prev = shiftDay(planningDate, -1); setPlanningDate(prev); setMatrixForm((current) => ({ ...current, taskDate: prev })); }}>Prev day</button>
+            <button type="button" className="ghost-btn" onClick={() => { const prev = shiftDay(planningDate, -1); setPlanningDate(prev); setMatrixForm((current) => ({ ...current, taskDate: prev })); }}>{t("Prev day")}</button>
             <input type="date" value={planningDate} onChange={(event) => { const next = event.target.value; if (!next) { return; } setPlanningDate(next); setMatrixForm((current) => ({ ...current, taskDate: next })); }} />
-            <button type="button" className="ghost-btn" onClick={() => { const next = shiftDay(planningDate, 1); setPlanningDate(next); setMatrixForm((current) => ({ ...current, taskDate: next })); }}>Next day</button>
-            <button type="button" className="ghost-btn" onClick={() => { const today = isoDate(0); setPlanningDate(today); setMatrixForm((current) => ({ ...current, taskDate: today })); }}>Today</button>
-            <button type="button" className="ghost-btn" onClick={() => void carryOverIncompleteTasks()} disabled={Boolean(busy)} title="Copy incomplete tasks from the previous day into this day"><RefreshCw size={14} /> Carry over incomplete</button>
-            <button type="button" className="ghost-btn" onClick={() => window.print()} disabled={matrixForDate.length === 0} title="Print the selected day's standup tasks"><Printer size={14} /> Print daily tasks</button>
-            <button type="button" className="ghost-btn" onClick={() => void downloadStandupTemplate()} title="Download a blank Excel template to run standups offline"><Download size={14} /> Offline template</button>
-            <button type="button" className="ghost-btn" onClick={() => standupFileRef.current?.click()} disabled={busy === 'import-standup'} title="Upload a filled offline standup workbook to import tasks"><Upload size={14} /> {busy === 'import-standup' ? 'Importing…' : 'Import filled file'}</button>
+            <button type="button" className="ghost-btn" onClick={() => { const next = shiftDay(planningDate, 1); setPlanningDate(next); setMatrixForm((current) => ({ ...current, taskDate: next })); }}>{t("Next day")}</button>
+            <button type="button" className="ghost-btn" onClick={() => { const today = isoDate(0); setPlanningDate(today); setMatrixForm((current) => ({ ...current, taskDate: today })); }}>{t("Today")}</button>
+            <button type="button" className="ghost-btn" onClick={() => void carryOverIncompleteTasks()} disabled={Boolean(busy)} title={t("Copy incomplete tasks from the previous day into this day")}><RefreshCw size={14} /> {t("Carry over incomplete")}</button>
+            <button type="button" className="ghost-btn" onClick={() => window.print()} disabled={matrixForDate.length === 0} title={t("Print the selected day's standup tasks")}><Printer size={14} /> {t("Print daily tasks")}</button>
+            <button type="button" className="ghost-btn" onClick={() => void downloadStandupTemplate()} title={t("Download a blank Excel template to run standups offline")}><Download size={14} /> {t("Offline template")}</button>
+            <button type="button" className="ghost-btn" onClick={() => standupFileRef.current?.click()} disabled={busy === 'import-standup'} title={t("Upload a filled offline standup workbook to import tasks")}><Upload size={14} /> {busy === 'import-standup' ? t("Importing…") : t("Import filled file")}</button>
             <input
               ref={standupFileRef}
               type="file"
@@ -1418,18 +1420,18 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
             {standupDates.map((date) => (
               <button key={date} type="button" className={date === planningDate ? 'day-btn active' : 'day-btn'} onClick={() => { setPlanningDate(date); setMatrixForm((current) => ({ ...current, taskDate: date })); }}>
                 <strong>{shortDateLabel(date)}</strong>
-                <span>{app.matrixTasks.filter((item) => item.taskDate === date).length} items</span>
+                <span>{app.matrixTasks.filter((item) => item.taskDate === date).length} {t("items")}</span>
               </button>
             ))}
           </div>
           <div className="standup-overview">
-            {standupGroups.length === 0 ? <div className="empty-state">No standup tasks captured for this date yet.</div> : null}
+            {standupGroups.length === 0 ? <div className="empty-state">{t("No standup tasks captured for this date yet.")}</div> : null}
             {standupGroups.map(([lead, tasks]) => (
               <section className="standup-group" key={lead}>
                 <header className="standup-group-head">
                   <div>
-                    <strong>{lead} - Daily Stand up - Overview</strong>
-                    <span>{tasks.length} task(s) captured for {shortDateLabel(planningDate)}</span>
+                    <strong>{lead} {t("- Daily Stand up - Overview")}</strong>
+                    <span>{tasks.length} {t("task(s) captured for")} {shortDateLabel(planningDate)}</span>
                   </div>
                 </header>
                 <table className="grid-table standup-table">
@@ -1441,7 +1443,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                     <col className="standup-col-actions" />
                   </colgroup>
                   <thead>
-                    <tr><th>Task id</th><th>Task Description</th><th>Minutes</th><th>Status</th><th className="ta-r"><span className="standup-screen-action">Action</span><span className="standup-print-notes">Follow-up notes</span></th></tr>
+                    <tr><th>{t("Task id")}</th><th>{t("Task Description")}</th><th>{t("Minutes")}</th><th>{t("Status")}</th><th className="ta-r"><span className="standup-screen-action">{t("Action")}</span><span className="standup-print-notes">{t("Follow-up notes")}</span></th></tr>
                   </thead>
                   <tbody>
                     {tasks.map((item, index) => (
@@ -1450,23 +1452,23 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                         <td className="wrap-cell">
                           <strong className="standup-task-title">{item.title}</strong>
                           <div className="standup-task-meta">
-                            <span className={`scope quad-${item.quadrant.toLowerCase()}`}>{item.quadrant}</span>
-                            {item.objectiveId ? (() => { const obj = objectiveById.get(item.objectiveId); return obj ? <button type="button" className="link-chip" title={obj.title} onClick={() => openLinkedTarget('objective', item.objectiveId)}>{`OBJ-${obj.id}`}</button> : null; })() : null}
+                            <span className={`scope quad-${item.quadrant.toLowerCase()}`}>{t(item.quadrant)}</span>
+                            {item.objectiveId ? (() => { const obj = objectiveById.get(item.objectiveId); return obj ? <button type="button" className="link-chip" title={t(obj.title)} onClick={() => openLinkedTarget('objective', item.objectiveId)}>{t("OBJ-{{value0}}", { value0: obj.id })}</button> : null; })() : null}
                             <span className={item.assignee ? 'standup-assignee' : 'standup-assignee empty'}>{item.assignee || 'No assignee set'}</span>
-                            {item.dueTime ? <span>Due {item.dueTime}</span> : null}
+                            {item.dueTime ? <span>{t("Due")} {item.dueTime}</span> : null}
                           </div>
                           {notesDraft?.id === item.id ? (
                             <div className="standup-notes-edit">
-                              <textarea rows={2} autoFocus value={notesDraft.text} onChange={(event) => setNotesDraft({ id: item.id, text: event.target.value })} placeholder="Stand-down comment" />
+                              <textarea rows={2} autoFocus value={notesDraft.text} onChange={(event) => setNotesDraft({ id: item.id, text: event.target.value })} placeholder={t("Stand-down comment")} />
                               <div className="standup-notes-actions">
-                                <button type="button" className="primary-btn" onClick={() => void saveInlineNotes()} disabled={Boolean(busy)}>Save</button>
-                                <button type="button" className="ghost-btn" onClick={() => setNotesDraft(null)}>Cancel</button>
+                                <button type="button" className="primary-btn" onClick={() => void saveInlineNotes()} disabled={Boolean(busy)}>{t("Save")}</button>
+                                <button type="button" className="ghost-btn" onClick={() => setNotesDraft(null)}>{t("Cancel")}</button>
                               </div>
                             </div>
                           ) : item.notes ? (
-                            <button type="button" className="standup-task-notes editable" onClick={() => setNotesDraft({ id: item.id, text: item.notes })} title="Click to edit stand-down comment">{item.notes}</button>
+                            <button type="button" className="standup-task-notes editable" onClick={() => setNotesDraft({ id: item.id, text: item.notes })} title={t("Click to edit stand-down comment")}>{item.notes}</button>
                           ) : (
-                            <button type="button" className="standup-notes-add" onClick={() => setNotesDraft({ id: item.id, text: '' })}>+ Add stand-down comment</button>
+                            <button type="button" className="standup-notes-add" onClick={() => setNotesDraft({ id: item.id, text: '' })}>{t("+ Add stand-down comment")}</button>
                           )}
                         </td>
                         <td>{formatMinutes(item.durationMinutes)}</td>
@@ -1479,14 +1481,14 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                             disabled={Boolean(busy)}
                           >
                             <CheckCircle2 size={15} aria-hidden="true" />
-                            <span>{item.status}</span>
+                            <span>{t(item.status)}</span>
                           </button>
-                          <span className="standup-print-status">☐ Complete</span>
+                          <span className="standup-print-status">{t("☐ Complete")}</span>
                         </td>
                         <td className="ta-r">
                           <div className="action-row">
-                            <EditButton onClick={() => beginEditTask(item)} label="Edit task" />
-                            <DeleteButton onClick={() => void deleteRecord('matrixTask', item.id)} label="Delete task" />
+                            <EditButton onClick={() => beginEditTask(item)} label={t("Edit task")} />
+                            <DeleteButton onClick={() => void deleteRecord('matrixTask', item.id)} label={t("Delete task")} />
                           </div>
                           <span className="standup-print-notes">________________________________________________</span>
                         </td>
@@ -1506,10 +1508,10 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
     return (
       <>
       <div className={kpiIntakeCollapsed ? 'workforce-layout collapsed' : 'workforce-layout'}>
-        <Panel title="KPI and SLA register" className="workforce-planner" meta={<span className="muted">{app.kpis.length} metrics</span>}>
+        <Panel title={t("KPI and SLA register")} className="workforce-planner" meta={<span className="muted">{app.kpis.length} {t("metrics")}</span>}>
           <table className="grid-table">
             <thead>
-              <tr><th>Code</th><th>Name</th><th>Actual</th><th>Target</th><th>Trend</th><th className="ta-r">Action</th></tr>
+              <tr><th>{t("Code")}</th><th>{t("Name")}</th><th>{t("Actual")}</th><th>{t("Target")}</th><th>{t("Trend")}</th><th className="ta-r">{t("Action")}</th></tr>
             </thead>
             <tbody>
               {app.kpis.map((item) => (
@@ -1519,7 +1521,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                   <td><span className="status">{dot(item.health)}{item.actual}</span></td>
                   <td className="muted">{item.target}</td>
                   <td className="kpi-trend-cell"><span className={`kpi-trend ${item.trend}`}><TrendGlyph trend={item.trend} />{item.delta}</span></td>
-                  <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setKpiForm({ code: item.code, name: item.name, actual: item.actual, target: item.target, delta: item.delta, trend: item.trend, health: item.health, direction: item.direction ?? '', tolerance: item.tolerance ?? 5 }); setEditor('kpi', item.id); }} label="Edit KPI" /><DeleteButton onClick={() => void deleteRecord('kpi', item.id)} label="Delete KPI" /></div></td>
+                  <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setKpiForm({ code: item.code, name: item.name, actual: item.actual, target: item.target, delta: item.delta, trend: item.trend, health: item.health, direction: item.direction ?? '', tolerance: item.tolerance ?? 5 }); setEditor('kpi', item.id); }} label={t("Edit KPI")} /><DeleteButton onClick={() => void deleteRecord('kpi', item.id)} label={t("Delete KPI")} /></div></td>
                 </tr>
               ))}
             </tbody>
@@ -1527,48 +1529,48 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
         </Panel>
         {kpiIntakeCollapsed ? (
           <aside className="workforce-controls-rail">
-            <button type="button" className="controls-rail-btn" onClick={() => setKpiIntakeCollapsed(false)} title="Expand add KPI" aria-label="Expand add KPI">
+            <button type="button" className="controls-rail-btn" onClick={() => setKpiIntakeCollapsed(false)} title={t("Expand add KPI")} aria-label={t("Expand add KPI")}>
               <ChevronLeft size={16} />
-              <span className="controls-rail-label">{editing.kpi ? 'Edit KPI' : 'Add KPI'}</span>
+              <span className="controls-rail-label">{editing.kpi ? t("Edit KPI") : t("Add KPI")}</span>
             </button>
           </aside>
         ) : (
-        <Panel title={editing.kpi ? 'Edit KPI' : 'Add KPI'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setKpiIntakeCollapsed(true)} title="Collapse add KPI" aria-label="Collapse add KPI"><ChevronRight size={14} /></button>}>
+        <Panel title={t(editing.kpi ? 'Edit KPI' : 'Add KPI')} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setKpiIntakeCollapsed(true)} title={t("Collapse add KPI")} aria-label={t("Collapse add KPI")}><ChevronRight size={14} /></button>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (editing.kpi) { void saveRecord('kpi', editing.kpi, kpiForm, () => { setKpiForm(defaultKpiForm); setEditor('kpi', null); }); return; } void createRecord('kpi', kpiForm, () => setKpiForm(defaultKpiForm)); }}>
             <div className="form-grid two">
-              <Field label="Code"><input value={kpiForm.code} onChange={(event) => setKpiForm({ ...kpiForm, code: event.target.value })} required /></Field>
-              <Field label="Trend"><select value={kpiForm.trend} onChange={(event) => setKpiForm({ ...kpiForm, trend: event.target.value as Trend })}>{trendOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
+              <Field label={t("Code")}><input value={kpiForm.code} onChange={(event) => setKpiForm({ ...kpiForm, code: event.target.value })} required /></Field>
+              <Field label={t("Trend")}><select value={kpiForm.trend} onChange={(event) => setKpiForm({ ...kpiForm, trend: event.target.value as Trend })}>{trendOptions.map((item) => <option key={item} value={item}>{t(item)}</option>)}</select></Field>
             </div>
-            <Field label="Name"><input value={kpiForm.name} onChange={(event) => setKpiForm({ ...kpiForm, name: event.target.value })} required /></Field>
+            <Field label={t("Name")}><input value={kpiForm.name} onChange={(event) => setKpiForm({ ...kpiForm, name: event.target.value })} required /></Field>
             <div className="form-grid two">
-              <Field label="Actual"><input value={kpiForm.actual} onChange={(event) => setKpiForm({ ...kpiForm, actual: event.target.value })} required /></Field>
-              <Field label="Target"><input value={kpiForm.target} onChange={(event) => setKpiForm({ ...kpiForm, target: event.target.value })} required /></Field>
+              <Field label={t("Actual")}><input value={kpiForm.actual} onChange={(event) => setKpiForm({ ...kpiForm, actual: event.target.value })} required /></Field>
+              <Field label={t("Target")}><input value={kpiForm.target} onChange={(event) => setKpiForm({ ...kpiForm, target: event.target.value })} required /></Field>
             </div>
             <div className="form-grid two">
-              <Field label="Delta"><input value={kpiForm.delta} onChange={(event) => setKpiForm({ ...kpiForm, delta: event.target.value })} required /></Field>
-              <Field label="Health">{(() => {
+              <Field label={t("Delta")}><input value={kpiForm.delta} onChange={(event) => setKpiForm({ ...kpiForm, delta: event.target.value })} required /></Field>
+              <Field label={t("Health")}>{(() => {
                 const computed = computeKpiHealth(kpiForm.actual, kpiForm.target, kpiForm.direction, kpiForm.tolerance);
                 return computed
-                  ? <input value={`${computed} (calculated)`} readOnly title="Calculated from actual vs target by the health rule" />
-                  : <select value={kpiForm.health} onChange={(event) => setKpiForm({ ...kpiForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select>;
+                  ? <input value={`${computed} (calculated)`} readOnly title={t("Calculated from actual vs target by the health rule")} />
+                  : <select value={kpiForm.health} onChange={(event) => setKpiForm({ ...kpiForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{t(item)}</option>)}</select>;
               })()}</Field>
             </div>
             <div className="form-grid two">
-              <Field label="Health rule"><select value={kpiForm.direction} onChange={(event) => setKpiForm({ ...kpiForm, direction: event.target.value as KpiDirection })}><option value="">Set by hand</option><option value="higher">Higher is better</option><option value="lower">Lower is better</option></select></Field>
-              <Field label="Amber band (% of target)"><input type="number" min={0} max={100} value={kpiForm.tolerance} onChange={(event) => setKpiForm({ ...kpiForm, tolerance: Number(event.target.value) || 0 })} disabled={!kpiForm.direction} /></Field>
+              <Field label={t("Health rule")}><select value={kpiForm.direction} onChange={(event) => setKpiForm({ ...kpiForm, direction: event.target.value as KpiDirection })}><option value="">{t("Set by hand")}</option><option value="higher">{t("Higher is better")}</option><option value="lower">{t("Lower is better")}</option></select></Field>
+              <Field label={t("Amber band (% of target)")}><input type="number" min={0} max={100} value={kpiForm.tolerance} onChange={(event) => setKpiForm({ ...kpiForm, tolerance: Number(event.target.value) || 0 })} disabled={!kpiForm.direction} /></Field>
             </div>
-            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.kpi ? 'Save KPI' : 'Add KPI'}</button>
-            {editing.kpi ? <button className="ghost-btn" type="button" onClick={() => { setKpiForm(defaultKpiForm); setEditor('kpi', null); }}>Cancel edit</button> : null}
+            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.kpi ? t("Save KPI") : t("Add KPI")}</button>
+            {editing.kpi ? <button className="ghost-btn" type="button" onClick={() => { setKpiForm(defaultKpiForm); setEditor('kpi', null); }}>{t("Cancel edit")}</button> : null}
           </form>
         </Panel>
         )}
       </div>
       <div className="grid">
 
-        <Panel title="Follow-up tracker" span={8} meta={<span className="muted">{app.followUps.length} open</span>}>
+        <Panel title={t("Follow-up tracker")} span={8} meta={<span className="muted">{app.followUps.length} {t("open")}</span>}>
           <table className="grid-table">
             <thead>
-              <tr><th>Ref</th><th>Title</th><th>Owner</th><th>Age</th><th className="ta-r">Action</th></tr>
+              <tr><th>{t("Ref")}</th><th>{t("Title")}</th><th>{t("Owner")}</th><th>{t("Age")}</th><th className="ta-r">{t("Action")}</th></tr>
             </thead>
             <tbody>
               {app.followUps.map((item) => (
@@ -1577,23 +1579,23 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                   <td>{item.title}</td>
                   <td className="muted">{item.owner}</td>
                   <td><span className="status">{dot(item.health)}{item.age}</span></td>
-                  <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setFollowUpForm({ ref: item.ref, title: item.title, owner: item.owner, age: item.age, health: item.health }); setEditor('followUp', item.id); }} label="Edit follow-up" /><DeleteButton onClick={() => void deleteRecord('followUp', item.id)} label="Delete follow-up" /></div></td>
+                  <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setFollowUpForm({ ref: item.ref, title: item.title, owner: item.owner, age: item.age, health: item.health }); setEditor('followUp', item.id); }} label={t("Edit follow-up")} /><DeleteButton onClick={() => void deleteRecord('followUp', item.id)} label={t("Delete follow-up")} /></div></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </Panel>
-        <Panel title={editing.followUp ? 'Edit follow-up' : 'Add follow-up'} span={4} meta={<span className="muted">operations backlog</span>}>
+        <Panel title={t(editing.followUp ? 'Edit follow-up' : 'Add follow-up')} span={4} meta={<span className="muted">{t("operations backlog")}</span>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (editing.followUp) { void saveRecord('followUp', editing.followUp, followUpForm, () => { setFollowUpForm(defaultFollowUpForm); setEditor('followUp', null); }); return; } void createRecord('followUp', followUpForm, () => setFollowUpForm(defaultFollowUpForm)); }}>
-            <Field label="Reference"><input value={followUpForm.ref} onChange={(event) => setFollowUpForm({ ...followUpForm, ref: event.target.value })} required /></Field>
-            <Field label="Title"><input value={followUpForm.title} onChange={(event) => setFollowUpForm({ ...followUpForm, title: event.target.value })} required /></Field>
-            <Field label="Owner"><input value={followUpForm.owner} onChange={(event) => setFollowUpForm({ ...followUpForm, owner: event.target.value })} required /></Field>
+            <Field label={t("Reference")}><input value={followUpForm.ref} onChange={(event) => setFollowUpForm({ ...followUpForm, ref: event.target.value })} required /></Field>
+            <Field label={t("Title")}><input value={followUpForm.title} onChange={(event) => setFollowUpForm({ ...followUpForm, title: event.target.value })} required /></Field>
+            <Field label={t("Owner")}><input value={followUpForm.owner} onChange={(event) => setFollowUpForm({ ...followUpForm, owner: event.target.value })} required /></Field>
             <div className="form-grid two">
-              <Field label="Age"><input value={followUpForm.age} onChange={(event) => setFollowUpForm({ ...followUpForm, age: event.target.value })} placeholder="4h" required /></Field>
-              <Field label="Health"><select value={followUpForm.health} onChange={(event) => setFollowUpForm({ ...followUpForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
+              <Field label={t("Age")}><input value={followUpForm.age} onChange={(event) => setFollowUpForm({ ...followUpForm, age: event.target.value })} placeholder={t("4h")} required /></Field>
+              <Field label={t("Health")}><select value={followUpForm.health} onChange={(event) => setFollowUpForm({ ...followUpForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{t(item)}</option>)}</select></Field>
             </div>
-            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.followUp ? 'Save follow-up' : 'Add follow-up'}</button>
-            {editing.followUp ? <button className="ghost-btn" type="button" onClick={() => { setFollowUpForm(defaultFollowUpForm); setEditor('followUp', null); }}>Cancel edit</button> : null}
+            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.followUp ? t("Save follow-up") : t("Add follow-up")}</button>
+            {editing.followUp ? <button className="ghost-btn" type="button" onClick={() => { setFollowUpForm(defaultFollowUpForm); setEditor('followUp', null); }}>{t("Cancel edit")}</button> : null}
           </form>
         </Panel>
       </div>
@@ -1620,27 +1622,27 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
       <div className={issueIntakeCollapsed ? 'workforce-layout collapsed' : 'workforce-layout'}>
         {issueIntakeCollapsed ? (
           <aside className="workforce-controls-rail">
-            <button type="button" className="controls-rail-btn" onClick={() => setIssueIntakeCollapsed(false)} title="Expand add issue" aria-label="Expand add issue">
+            <button type="button" className="controls-rail-btn" onClick={() => setIssueIntakeCollapsed(false)} title={t("Expand add issue")} aria-label={t("Expand add issue")}>
               <ChevronLeft size={16} />
-              <span className="controls-rail-label">{editing.issue ? 'Edit issue' : 'Add issue'}</span>
+              <span className="controls-rail-label">{editing.issue ? t("Edit issue") : t("Add issue")}</span>
             </button>
           </aside>
         ) : (
-        <Panel title={editing.issue ? 'Edit issue' : 'Add issue'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setIssueIntakeCollapsed(true)} title="Collapse add issue" aria-label="Collapse add issue"><ChevronRight size={14} /></button>}>
+        <Panel title={t(editing.issue ? 'Edit issue' : 'Add issue')} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setIssueIntakeCollapsed(true)} title={t("Collapse add issue")} aria-label={t("Collapse add issue")}><ChevronRight size={14} /></button>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (editing.issue) { void saveRecord('issue', editing.issue, issueForm, () => { setIssueForm(defaultIssueForm); setEditor('issue', null); }); return; } void createRecord('issue', issueForm, () => setIssueForm(defaultIssueForm)); }}>
-            <Field label="Scope"><select value={issueForm.scope} onChange={(event) => setIssueForm({ ...issueForm, scope: event.target.value })}>{objectiveScopeOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
-            <Field label="Status"><select value={issueForm.status} onChange={(event) => setIssueForm({ ...issueForm, status: event.target.value as IssueStatus })}>{issueStatusOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
-            <Field label="Issue title"><input value={issueForm.title} onChange={(event) => setIssueForm({ ...issueForm, title: event.target.value })} required /></Field>
-            <Field label="Issue summary"><textarea rows={6} value={issueForm.summary} onChange={(event) => setIssueForm({ ...issueForm, summary: event.target.value })} placeholder="Capture the impact, current blocker, decision needed, and next action." /></Field>
-            <Field label="Lead">
+            <Field label={t("Scope")}><select value={issueForm.scope} onChange={(event) => setIssueForm({ ...issueForm, scope: event.target.value })}>{objectiveScopeOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
+            <Field label={t("Status")}><select value={issueForm.status} onChange={(event) => setIssueForm({ ...issueForm, status: event.target.value as IssueStatus })}>{issueStatusOptions.map((item) => <option key={item} value={item}>{t(item)}</option>)}</select></Field>
+            <Field label={t("Issue title")}><input value={issueForm.title} onChange={(event) => setIssueForm({ ...issueForm, title: event.target.value })} required /></Field>
+            <Field label={t("Issue summary")}><textarea rows={6} value={issueForm.summary} onChange={(event) => setIssueForm({ ...issueForm, summary: event.target.value })} placeholder={t("Capture the impact, current blocker, decision needed, and next action.")} /></Field>
+            <Field label={t("Lead")}>
               <select value={issueForm.owner} onChange={(event) => setIssueForm({ ...issueForm, owner: event.target.value })} required>
-                <option value="" disabled>Select lead</option>
+                <option value="" disabled>{t("Select lead")}</option>
                 {leadNames.map((name) => <option key={name} value={name}>{name}</option>)}
                 {issueForm.owner && !leadNames.includes(issueForm.owner) ? <option value={issueForm.owner}>{issueForm.owner}</option> : null}
               </select>
             </Field>
-            <Field label="Assigned to"><input value={issueForm.assignedTo} onChange={(event) => setIssueForm({ ...issueForm, assignedTo: event.target.value })} placeholder="Name or team responsible" /></Field>
-            <Field label="Linked to">
+            <Field label={t("Assigned to")}><input value={issueForm.assignedTo} onChange={(event) => setIssueForm({ ...issueForm, assignedTo: event.target.value })} placeholder={t("Name or team responsible")} /></Field>
+            <Field label={t("Linked to")}>
               <select
                 value={issueForm.linkedType && issueForm.linkedId ? `${issueForm.linkedType}:${issueForm.linkedId}` : ''}
                 onChange={(event) => {
@@ -1650,26 +1652,26 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                   setIssueForm({ ...issueForm, linkedType: type as 'objective' | 'project', linkedId: Number(id) });
                 }}
               >
-                <option value="">None</option>
-                <optgroup label="Objectives">
-                  {app.objectives.map((item) => <option key={`objective-${item.id}`} value={`objective:${item.id}`}>{`OBJ-${item.id} · ${item.title}`}</option>)}
+                <option value="">{t("None")}</option>
+                <optgroup label={t("Objectives")}>
+                  {app.objectives.map((item) => <option key={`objective-${item.id}`} value={`objective:${item.id}`}>{t("OBJ-{{value0}} · {{value1}}", { value0: item.id, value1: item.title })}</option>)}
                 </optgroup>
-                <optgroup label="Projects">
+                <optgroup label={t("Projects")}>
                   {app.projects.map((item) => <option key={`project-${item.id}`} value={`project:${item.id}`}>{`${item.code || `PRJ-${item.id}`} · ${item.name}`}</option>)}
                 </optgroup>
               </select>
             </Field>
             <div className="form-grid two">
-              <Field label="Due"><input type="date" value={issueForm.due} onChange={(event) => setIssueForm({ ...issueForm, due: event.target.value })} required /></Field>
-              <Field label="Progress"><input type="number" min="0" max="100" value={issueForm.progress} onChange={(event) => setIssueForm({ ...issueForm, progress: Number(event.target.value) })} /></Field>
+              <Field label={t("Due")}><input type="date" value={issueForm.due} onChange={(event) => setIssueForm({ ...issueForm, due: event.target.value })} required /></Field>
+              <Field label={t("Progress")}><input type="number" min="0" max="100" value={issueForm.progress} onChange={(event) => setIssueForm({ ...issueForm, progress: Number(event.target.value) })} /></Field>
             </div>
-            <Field label="Health"><select value={issueForm.health} onChange={(event) => setIssueForm({ ...issueForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
-            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.issue ? 'Save issue' : 'Add issue'}</button>
-            {editing.issue ? <button className="ghost-btn" type="button" onClick={() => { setIssueForm(defaultIssueForm); setEditor('issue', null); }}>Cancel edit</button> : null}
+            <Field label={t("Health")}><select value={issueForm.health} onChange={(event) => setIssueForm({ ...issueForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{t(item)}</option>)}</select></Field>
+            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.issue ? t("Save issue") : t("Add issue")}</button>
+            {editing.issue ? <button className="ghost-btn" type="button" onClick={() => { setIssueForm(defaultIssueForm); setEditor('issue', null); }}>{t("Cancel edit")}</button> : null}
           </form>
         </Panel>
         )}
-        <Panel title="Issue register" className="workforce-planner" meta={<span className="muted">daily, weekly, monthly</span>}>
+        <Panel title={t("Issue register")} className="workforce-planner" meta={<span className="muted">{t("daily, weekly, monthly")}</span>}>
           {registerView === 'tiles' ? (
             <div className="register-tiles">
               {(app.issues ?? []).map((item) => {
@@ -1678,21 +1680,21 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                   <article key={item.id} className={`register-tile issue-health-${String(item.health).toLowerCase()}`}>
                     <header className="register-tile-head">
                       <span className="scope">{item.scope}</span>
-                      <span className="register-tile-title" title={item.title}>{item.title}</span>
+                      <span className="register-tile-title" title={t(item.title)}>{item.title}</span>
                       {dot(item.health)}
                     </header>
-                    <div className="register-tile-status muted">{item.status}</div>
+                    <div className="register-tile-status muted">{t(item.status)}</div>
                     <dl className="register-tile-meta">
-                      <div><dt>Lead</dt><dd>{item.owner || '—'}</dd></div>
-                      <div><dt>Assigned</dt><dd>{item.assignedTo || '—'}</dd></div>
-                      <div><dt>Linked</dt><dd>{link ? <button type="button" className="link-chip" onClick={() => openLinkedTarget(item.linkedType as 'objective' | 'project', item.linkedId)}>{link.uid}</button> : '—'}</dd></div>
-                      <div><dt>Due</dt><dd>{objectiveDueLabel(item.due)}</dd></div>
+                      <div><dt>{t("Lead")}</dt><dd>{item.owner || '—'}</dd></div>
+                      <div><dt>{t("Assigned")}</dt><dd>{item.assignedTo || '—'}</dd></div>
+                      <div><dt>{t("Linked")}</dt><dd>{link ? <button type="button" className="link-chip" onClick={() => openLinkedTarget(item.linkedType as 'objective' | 'project', item.linkedId)}>{link.uid}</button> : '—'}</dd></div>
+                      <div><dt>{t("Due")}</dt><dd>{objectiveDueLabel(item.due)}</dd></div>
                     </dl>
                     <div className="register-tile-progress"><div className="mini-bar"><span className={item.health} style={{ width: `${item.progress}%` }} /></div><span className="muted">{item.progress}%</span></div>
                     {item.summary ? <p className="register-tile-summary">{item.summary}</p> : null}
                     <div className="register-tile-actions">
-                      <EditButton onClick={() => { setIssueForm({ scope: item.scope, status: item.status, title: item.title, summary: item.summary, owner: item.owner, assignedTo: item.assignedTo ?? '', linkedType: item.linkedType ?? '', linkedId: item.linkedId ?? 0, due: isDateKey(item.due) ? item.due : '', progress: item.progress, health: item.health }); setEditor('issue', item.id); }} label="Edit issue" />
-                      <DeleteButton onClick={() => void deleteRecord('issue', item.id)} label="Delete issue" />
+                      <EditButton onClick={() => { setIssueForm({ scope: item.scope, status: item.status, title: item.title, summary: item.summary, owner: item.owner, assignedTo: item.assignedTo ?? '', linkedType: item.linkedType ?? '', linkedId: item.linkedId ?? 0, due: isDateKey(item.due) ? item.due : '', progress: item.progress, health: item.health }); setEditor('issue', item.id); }} label={t("Edit issue")} />
+                      <DeleteButton onClick={() => void deleteRecord('issue', item.id)} label={t("Delete issue")} />
                     </div>
                   </article>
                 );
@@ -1712,7 +1714,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
               <col className="objective-col-action" />
             </colgroup>
             <thead>
-              <tr><th></th><th>S</th><th>Issue title</th><th>Lead</th><th>Assigned to</th><th>Linked to</th><th>Due</th><th>Prog</th><th className="ta-r">Action</th></tr>
+              <tr><th></th><th>{t("S")}</th><th>{t("Issue title")}</th><th>{t("Lead")}</th><th>{t("Assigned to")}</th><th>{t("Linked to")}</th><th>{t("Due")}</th><th>{t("Prog")}</th><th className="ta-r">{t("Action")}</th></tr>
             </thead>
             <tbody>
               {(app.issues ?? []).map((item) => {
@@ -1721,18 +1723,18 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                   <Fragment key={item.id}>
                     <tr className={expanded ? `objective-row issue-row issue-health-${String(item.health).toLowerCase()} expanded` : `objective-row issue-row issue-health-${String(item.health).toLowerCase()}`}>
                       <td>
-                        <button className="icon-btn objective-expand" type="button" onClick={() => toggleIssue(item.id)} aria-label={expanded ? 'Collapse issue summary' : 'Expand issue summary'}>
+                        <button className="icon-btn objective-expand" type="button" onClick={() => toggleIssue(item.id)} aria-label={t(expanded ? 'Collapse issue summary' : 'Expand issue summary')}>
                           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </button>
                       </td>
                       <td><span className="scope">{item.scope}</span></td>
-                      <td className="objective-title-cell"><span>{item.title}</span><div className="muted">{item.status}</div></td>
+                      <td className="objective-title-cell"><span>{item.title}</span><div className="muted">{t(item.status)}</div></td>
                       <td className="muted">{item.owner}</td>
                       <td className="muted">{item.assignedTo || '—'}</td>
-                      <td className="muted">{(() => { const link = issueLink(item); return link ? <button type="button" className="link-chip" title={`${link.name} — open`} onClick={() => openLinkedTarget(item.linkedType as 'objective' | 'project', item.linkedId)}>{link.uid}</button> : '—'; })()}</td>
+                      <td className="muted">{(() => { const link = issueLink(item); return link ? <button type="button" className="link-chip" title={t("{{value0}} — open", { value0: link.name })} onClick={() => openLinkedTarget(item.linkedType as 'objective' | 'project', item.linkedId)}>{link.uid}</button> : '—'; })()}</td>
                       <td className="muted">{objectiveDueLabel(item.due)}</td>
                       <td><div className="mini-bar"><span className={item.health} style={{ width: `${item.progress}%` }} /></div></td>
-                      <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setIssueForm({ scope: item.scope, status: item.status, title: item.title, summary: item.summary, owner: item.owner, assignedTo: item.assignedTo ?? '', linkedType: item.linkedType ?? '', linkedId: item.linkedId ?? 0, due: isDateKey(item.due) ? item.due : '', progress: item.progress, health: item.health }); setEditor('issue', item.id); }} label="Edit issue" /><DeleteButton onClick={() => void deleteRecord('issue', item.id)} label="Delete issue" /></div></td>
+                      <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setIssueForm({ scope: item.scope, status: item.status, title: item.title, summary: item.summary, owner: item.owner, assignedTo: item.assignedTo ?? '', linkedType: item.linkedType ?? '', linkedId: item.linkedId ?? 0, due: isDateKey(item.due) ? item.due : '', progress: item.progress, health: item.health }); setEditor('issue', item.id); }} label={t("Edit issue")} /><DeleteButton onClick={() => void deleteRecord('issue', item.id)} label={t("Delete issue")} /></div></td>
                     </tr>
                     {expanded ? (
                       <tr className="objective-summary-row">
@@ -1788,7 +1790,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
       }
 
       if (selectedFile && !createdId) {
-        setError('Objective saved, but the document could not be attached automatically. Open the objective in edit mode and upload it again.');
+        setError("Objective saved, but the document could not be attached automatically. Open the objective in edit mode and upload it again.");
       }
 
       setObjectiveForm(defaultObjectiveForm);
@@ -1799,38 +1801,38 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
       <div className={objectiveIntakeCollapsed ? 'workforce-layout collapsed' : 'workforce-layout'}>
         {objectiveIntakeCollapsed ? (
           <aside className="workforce-controls-rail">
-            <button type="button" className="controls-rail-btn" onClick={() => setObjectiveIntakeCollapsed(false)} title="Expand add objective" aria-label="Expand add objective">
+            <button type="button" className="controls-rail-btn" onClick={() => setObjectiveIntakeCollapsed(false)} title={t("Expand add objective")} aria-label={t("Expand add objective")}>
               <ChevronLeft size={16} />
-              <span className="controls-rail-label">{editing.objective ? 'Edit objective' : 'Add objective'}</span>
+              <span className="controls-rail-label">{editing.objective ? t("Edit objective") : t("Add objective")}</span>
             </button>
           </aside>
         ) : (
-        <Panel title={editing.objective ? 'Edit objective' : 'Add objective'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setObjectiveIntakeCollapsed(true)} title="Collapse add objective" aria-label="Collapse add objective"><ChevronRight size={14} /></button>}>
+        <Panel title={t(editing.objective ? 'Edit objective' : 'Add objective')} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setObjectiveIntakeCollapsed(true)} title={t("Collapse add objective")} aria-label={t("Collapse add objective")}><ChevronRight size={14} /></button>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); void submitObjectiveForm(); }}>
-            <Field label="Scope"><select value={objectiveForm.scope} onChange={(event) => setObjectiveForm({ ...objectiveForm, scope: event.target.value })}>{objectiveScopeOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
-            <Field label="Objective title"><input value={objectiveForm.title} onChange={(event) => setObjectiveForm({ ...objectiveForm, title: event.target.value })} required /></Field>
-            <Field label="Objective summary"><textarea rows={6} value={objectiveForm.summary} onChange={(event) => setObjectiveForm({ ...objectiveForm, summary: event.target.value })} placeholder="Capture the full objective context, scope, decisions, and expected outcome." /></Field>
-            <Field label="Lead">
+            <Field label={t("Scope")}><select value={objectiveForm.scope} onChange={(event) => setObjectiveForm({ ...objectiveForm, scope: event.target.value })}>{objectiveScopeOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
+            <Field label={t("Objective title")}><input value={objectiveForm.title} onChange={(event) => setObjectiveForm({ ...objectiveForm, title: event.target.value })} required /></Field>
+            <Field label={t("Objective summary")}><textarea rows={6} value={objectiveForm.summary} onChange={(event) => setObjectiveForm({ ...objectiveForm, summary: event.target.value })} placeholder={t("Capture the full objective context, scope, decisions, and expected outcome.")} /></Field>
+            <Field label={t("Lead")}>
               <select value={objectiveForm.owner} onChange={(event) => setObjectiveForm({ ...objectiveForm, owner: event.target.value })} required>
-                <option value="" disabled>Select lead</option>
+                <option value="" disabled>{t("Select lead")}</option>
                 {leadNames.map((name) => <option key={name} value={name}>{name}</option>)}
                 {objectiveForm.owner && !leadNames.includes(objectiveForm.owner) ? <option value={objectiveForm.owner}>{objectiveForm.owner}</option> : null}
               </select>
             </Field>
-            <Field label="Assigned to"><input value={objectiveForm.assignedTo} onChange={(event) => setObjectiveForm({ ...objectiveForm, assignedTo: event.target.value })} placeholder="Name or team responsible" /></Field>
+            <Field label={t("Assigned to")}><input value={objectiveForm.assignedTo} onChange={(event) => setObjectiveForm({ ...objectiveForm, assignedTo: event.target.value })} placeholder={t("Name or team responsible")} /></Field>
             <div className="form-grid two">
-              <Field label="Due"><input type="date" value={objectiveForm.due} onChange={(event) => setObjectiveForm({ ...objectiveForm, due: event.target.value })} required /></Field>
-              <Field label="Progress"><input type="number" min="0" max="100" value={objectiveForm.progress} onChange={(event) => setObjectiveForm({ ...objectiveForm, progress: Number(event.target.value) })} /></Field>
+              <Field label={t("Due")}><input type="date" value={objectiveForm.due} onChange={(event) => setObjectiveForm({ ...objectiveForm, due: event.target.value })} required /></Field>
+              <Field label={t("Progress")}><input type="number" min="0" max="100" value={objectiveForm.progress} onChange={(event) => setObjectiveForm({ ...objectiveForm, progress: Number(event.target.value) })} /></Field>
             </div>
-            <Field label="Health"><select value={objectiveForm.health} onChange={(event) => setObjectiveForm({ ...objectiveForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
-            <Field label="Objective document"><input key={`objective-file-${editing.objective ?? 'new'}`} type="file" accept=".pdf,.doc,.docx,.txt,.md,.rtf" onChange={(event) => setObjectiveFile(event.target.files?.[0] ?? null)} /></Field>
-            <div className="field-hint">Attach the objective brief, evidence pack, or related working document. Max file size: {DOCUMENT_UPLOAD_MAX_MB} MB. Upload replaces any existing document.</div>
-            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.objective ? 'Save objective' : 'Add objective'}</button>
-            {editing.objective ? <button className="ghost-btn" type="button" onClick={() => { setObjectiveForm(defaultObjectiveForm); setObjectiveFile(null); setEditor('objective', null); }}>Cancel edit</button> : null}
+            <Field label={t("Health")}><select value={objectiveForm.health} onChange={(event) => setObjectiveForm({ ...objectiveForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{t(item)}</option>)}</select></Field>
+            <Field label={t("Objective document")}><input key={`objective-file-${editing.objective ?? 'new'}`} type="file" accept=".pdf,.doc,.docx,.txt,.md,.rtf" onChange={(event) => setObjectiveFile(event.target.files?.[0] ?? null)} /></Field>
+            <div className="field-hint">{t("Attach the objective brief, evidence pack, or related working document. Max file size:")} {DOCUMENT_UPLOAD_MAX_MB} {t("MB. Upload replaces any existing document.")}</div>
+            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.objective ? t("Save objective") : t("Add objective")}</button>
+            {editing.objective ? <button className="ghost-btn" type="button" onClick={() => { setObjectiveForm(defaultObjectiveForm); setObjectiveFile(null); setEditor('objective', null); }}>{t("Cancel edit")}</button> : null}
           </form>
         </Panel>
         )}
-        <Panel title="Objective register" className="workforce-planner" meta={<span className="muted">daily, weekly, monthly</span>}>
+        <Panel title={t("Objective register")} className="workforce-planner" meta={<span className="muted">{t("daily, weekly, monthly")}</span>}>
           {registerView === 'tiles' ? (
             <div className="register-tiles">
               {app.objectives.map((item) => {
@@ -1839,22 +1841,22 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                   <article key={item.id} className={`register-tile issue-health-${String(item.health).toLowerCase()}`}>
                     <header className="register-tile-head">
                       <span className="scope">{item.scope}</span>
-                      <span className="register-tile-title" title={item.title}>{item.title}</span>
+                      <span className="register-tile-title" title={t(item.title)}>{item.title}</span>
                       {dot(item.health)}
                     </header>
                     <dl className="register-tile-meta">
-                      <div><dt>Lead</dt><dd>{item.owner || '—'}</dd></div>
-                      <div><dt>Assigned</dt><dd>{item.assignedTo || '—'}</dd></div>
-                      <div><dt>Issues</dt><dd>{refs.length ? <button type="button" className="link-chip" onClick={() => openReferencingIssues(refs.map((issue) => issue.id))}>{refs.length} issue{refs.length > 1 ? 's' : ''}</button> : '—'}</dd></div>
-                      <div><dt>Standups</dt><dd>{(() => { const linked = tasksForObjective(item.id); return linked.length ? <span title={`${linked.reduce((sum, task) => sum + task.durationMinutes, 0)} min across ${linked.length} task(s)`}>{linked.length} task{linked.length > 1 ? 's' : ''}</span> : '—'; })()}</dd></div>
-                      <div><dt>Due</dt><dd>{objectiveDueLabel(item.due)}</dd></div>
+                      <div><dt>{t("Lead")}</dt><dd>{item.owner || '—'}</dd></div>
+                      <div><dt>{t("Assigned")}</dt><dd>{item.assignedTo || '—'}</dd></div>
+                      <div><dt>{t("Issues")}</dt><dd>{refs.length ? <button type="button" className="link-chip" onClick={() => openReferencingIssues(refs.map((issue) => issue.id))}>{refs.length} {t("issue")}{refs.length > 1 ? t("s") : ''}</button> : '—'}</dd></div>
+                      <div><dt>{t("Standups")}</dt><dd>{(() => { const linked = tasksForObjective(item.id); return linked.length ? <span title={t("{{value0}} min across {{value1}} task(s)", { value0: linked.reduce((sum, task) => sum + task.durationMinutes, 0), value1: linked.length })}>{linked.length} {t("task")}{linked.length > 1 ? t("s") : ''}</span> : '—'; })()}</dd></div>
+                      <div><dt>{t("Due")}</dt><dd>{objectiveDueLabel(item.due)}</dd></div>
                     </dl>
                     <div className="register-tile-progress"><div className="mini-bar"><span className={item.health} style={{ width: `${item.progress}%` }} /></div><span className="muted">{item.progress}%</span></div>
-                    {item.attachmentPath ? <a className="doc-link register-tile-doc" href={item.attachmentPath} target="_blank" rel="noreferrer" title={item.attachmentName || 'Open'}><Paperclip size={12} /> <span className="doc-link-name">{item.attachmentName || 'Open'}</span></a> : null}
+                    {item.attachmentPath ? <a className="doc-link register-tile-doc" href={item.attachmentPath} target="_blank" rel="noreferrer" title={t(item.attachmentName || 'Open')}><Paperclip size={12} /> <span className="doc-link-name">{item.attachmentName || 'Open'}</span></a> : null}
                     {item.summary ? <p className="register-tile-summary">{item.summary}</p> : null}
                     <div className="register-tile-actions">
-                      <EditButton onClick={() => { setObjectiveForm({ scope: item.scope, title: item.title, summary: item.summary, owner: item.owner, assignedTo: item.assignedTo ?? '', due: isDateKey(item.due) ? item.due : '', progress: item.progress, health: item.health }); setObjectiveFile(null); setEditor('objective', item.id); }} label="Edit objective" />
-                      <DeleteButton onClick={() => void deleteRecord('objective', item.id)} label="Delete objective" />
+                      <EditButton onClick={() => { setObjectiveForm({ scope: item.scope, title: item.title, summary: item.summary, owner: item.owner, assignedTo: item.assignedTo ?? '', due: isDateKey(item.due) ? item.due : '', progress: item.progress, health: item.health }); setObjectiveFile(null); setEditor('objective', item.id); }} label={t("Edit objective")} />
+                      <DeleteButton onClick={() => void deleteRecord('objective', item.id)} label={t("Delete objective")} />
                     </div>
                   </article>
                 );
@@ -1875,7 +1877,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
               <col className="objective-col-action" />
             </colgroup>
             <thead>
-              <tr><th></th><th>S</th><th>Objective title</th><th>Lead</th><th>Assigned to</th><th>Issues</th><th>Document</th><th>Due</th><th>Prog</th><th className="ta-r">Action</th></tr>
+              <tr><th></th><th>{t("S")}</th><th>{t("Objective title")}</th><th>{t("Lead")}</th><th>{t("Assigned to")}</th><th>{t("Issues")}</th><th>{t("Document")}</th><th>{t("Due")}</th><th>{t("Prog")}</th><th className="ta-r">{t("Action")}</th></tr>
             </thead>
             <tbody>
               {app.objectives.map((item) => {
@@ -1884,7 +1886,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                   <Fragment key={item.id}>
                     <tr className={expanded ? 'objective-row expanded' : 'objective-row'}>
                       <td>
-                        <button className="icon-btn objective-expand" type="button" onClick={() => toggleObjective(item.id)} aria-label={expanded ? 'Collapse objective summary' : 'Expand objective summary'}>
+                        <button className="icon-btn objective-expand" type="button" onClick={() => toggleObjective(item.id)} aria-label={t(expanded ? 'Collapse objective summary' : 'Expand objective summary')}>
                           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </button>
                       </td>
@@ -1892,28 +1894,28 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                       <td className="objective-title-cell"><span>{item.title}</span></td>
                       <td className="muted">{item.owner}</td>
                       <td className="muted">{item.assignedTo || '—'}</td>
-                      <td className="muted">{(() => { const refs = issuesForObjective(item.id); return refs.length ? <button type="button" className="link-chip" title={refs.map((issue) => issue.title).join('\n')} onClick={() => openReferencingIssues(refs.map((issue) => issue.id))}>{refs.length} issue{refs.length > 1 ? 's' : ''}</button> : '—'; })()}</td>
-                      <td className="doc-cell">{item.attachmentPath ? <a className="doc-link" href={item.attachmentPath} target="_blank" rel="noreferrer" title={item.attachmentName || 'Open'}><Paperclip size={12} /> <span className="doc-link-name">{item.attachmentName || 'Open'}</span></a> : <span className="muted">No file</span>}</td>
+                      <td className="muted">{(() => { const refs = issuesForObjective(item.id); return refs.length ? <button type="button" className="link-chip" title={t(refs.map((issue) => issue.title).join('\n'))} onClick={() => openReferencingIssues(refs.map((issue) => issue.id))}>{refs.length} {t("issue")}{refs.length > 1 ? t("s") : ''}</button> : '—'; })()}</td>
+                      <td className="doc-cell">{item.attachmentPath ? <a className="doc-link" href={item.attachmentPath} target="_blank" rel="noreferrer" title={t(item.attachmentName || 'Open')}><Paperclip size={12} /> <span className="doc-link-name">{item.attachmentName || 'Open'}</span></a> : <span className="muted">{t("No file")}</span>}</td>
                       <td className="muted">{objectiveDueLabel(item.due)}</td>
                       <td><div className="mini-bar"><span className={item.health} style={{ width: `${item.progress}%` }} /></div></td>
-                      <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setObjectiveForm({ scope: item.scope, title: item.title, summary: item.summary, owner: item.owner, assignedTo: item.assignedTo ?? '', due: isDateKey(item.due) ? item.due : '', progress: item.progress, health: item.health }); setObjectiveFile(null); setEditor('objective', item.id); }} label="Edit objective" /><DeleteButton onClick={() => void deleteRecord('objective', item.id)} label="Delete objective" /></div></td>
+                      <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setObjectiveForm({ scope: item.scope, title: item.title, summary: item.summary, owner: item.owner, assignedTo: item.assignedTo ?? '', due: isDateKey(item.due) ? item.due : '', progress: item.progress, health: item.health }); setObjectiveFile(null); setEditor('objective', item.id); }} label={t("Edit objective")} /><DeleteButton onClick={() => void deleteRecord('objective', item.id)} label={t("Delete objective")} /></div></td>
                     </tr>
                     {expanded ? (
                       <tr className="objective-summary-row">
                         <td></td>
                         <td colSpan={9}>
                           <div className="objective-summary-text">{item.summary || 'No summary recorded.'}</div>
-                          {item.attachmentPath ? <div className="linked-issues"><span className="linked-issues-label">Document:</span><a className="doc-link" href={item.attachmentPath} target="_blank" rel="noreferrer"><Paperclip size={12} /> {item.attachmentName || 'Open document'}</a></div> : null}
+                          {item.attachmentPath ? <div className="linked-issues"><span className="linked-issues-label">{t("Document:")}</span><a className="doc-link" href={item.attachmentPath} target="_blank" rel="noreferrer"><Paperclip size={12} /> {item.attachmentName || 'Open document'}</a></div> : null}
                           {(() => { const refs = issuesForObjective(item.id); return refs.length ? (
                             <div className="linked-issues">
-                              <span className="linked-issues-label">Linked issues:</span>
-                              {refs.map((issue) => <button key={issue.id} type="button" className="link-chip" title={issue.title} onClick={() => openReferencingIssues([issue.id])}>{`ISS-${issue.id} · ${issue.title}`}</button>)}
+                              <span className="linked-issues-label">{t("Linked issues:")}</span>
+                              {refs.map((issue) => <button key={issue.id} type="button" className="link-chip" title={t(issue.title)} onClick={() => openReferencingIssues([issue.id])}>{t("ISS-{{value0}} · {{value1}}", { value0: issue.id, value1: issue.title })}</button>)}
                             </div>
                           ) : null; })()}
                           {(() => { const linked = tasksForObjective(item.id); return linked.length ? (
                             <div className="linked-issues">
-                              <span className="linked-issues-label">Linked standups ({linked.reduce((sum, task) => sum + task.durationMinutes, 0)} min):</span>
-                              {linked.map((task) => <span key={task.id} className="link-chip" title={`${task.lead} · ${task.status}`}>{`${task.taskDate} · ${task.title}`}</span>)}
+                              <span className="linked-issues-label">{t("Linked standups (")}{linked.reduce((sum, task) => sum + task.durationMinutes, 0)} {t("min):")}</span>
+                              {linked.map((task) => <span key={task.id} className="link-chip" title={t(`${task.lead} · ${task.status}`)}>{`${task.taskDate} · ${task.title}`}</span>)}
                             </div>
                           ) : null; })()}
                         </td>
@@ -1934,7 +1936,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
     const issuesForProject = (id: number) => app.issues.filter((issue) => issue.linkedType === 'project' && issue.linkedId === id);
     return (
       <div className={projectIntakeCollapsed ? 'workforce-layout collapsed' : 'workforce-layout'}>
-        <Panel title="Project tracker" className="workforce-planner" meta={<span className="muted">{app.projects.length} active projects</span>}>
+        <Panel title={t("Project tracker")} className="workforce-planner" meta={<span className="muted">{app.projects.length} {t("active projects")}</span>}>
           {registerView === 'tiles' ? (
             <div className="register-tiles">
               {app.projects.map((item) => {
@@ -1943,19 +1945,19 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                   <article key={item.id} className={`register-tile issue-health-${String(item.health).toLowerCase()}`}>
                     <header className="register-tile-head">
                       <span className="ref">{item.code}</span>
-                      <span className="register-tile-title" title={item.name}>{item.name}</span>
+                      <span className="register-tile-title" title={t(item.name)}>{item.name}</span>
                       {dot(item.health)}
                     </header>
                     <dl className="register-tile-meta">
-                      <div><dt>Owner</dt><dd>{item.owner || '—'}</dd></div>
-                      <div><dt>Phase</dt><dd>{item.phase || '—'}</dd></div>
-                      <div><dt>Issues</dt><dd>{refs.length ? <button type="button" className="link-chip" onClick={() => openReferencingIssues(refs.map((issue) => issue.id))}>{refs.length} issue{refs.length > 1 ? 's' : ''}</button> : '—'}</dd></div>
-                      <div><dt>Due</dt><dd>{item.due || '—'}</dd></div>
+                      <div><dt>{t("Owner")}</dt><dd>{item.owner || '—'}</dd></div>
+                      <div><dt>{t("Phase")}</dt><dd>{item.phase || '—'}</dd></div>
+                      <div><dt>{t("Issues")}</dt><dd>{refs.length ? <button type="button" className="link-chip" onClick={() => openReferencingIssues(refs.map((issue) => issue.id))}>{refs.length} {t("issue")}{refs.length > 1 ? t("s") : ''}</button> : '—'}</dd></div>
+                      <div><dt>{t("Due")}</dt><dd>{item.due || '—'}</dd></div>
                     </dl>
                     <div className="register-tile-progress"><div className="mini-bar"><span className={item.health} style={{ width: `${item.progress}%` }} /></div><span className="muted">{item.progress}%</span></div>
                     <div className="register-tile-actions">
-                      <EditButton onClick={() => { setProjectForm({ code: item.code, name: item.name, owner: item.owner, phase: item.phase, due: item.due, progress: item.progress, health: item.health }); setEditor('project', item.id); }} label="Edit project" />
-                      <DeleteButton onClick={() => void deleteRecord('project', item.id)} label="Delete project" />
+                      <EditButton onClick={() => { setProjectForm({ code: item.code, name: item.name, owner: item.owner, phase: item.phase, due: item.due, progress: item.progress, health: item.health }); setEditor('project', item.id); }} label={t("Edit project")} />
+                      <DeleteButton onClick={() => void deleteRecord('project', item.id)} label={t("Delete project")} />
                     </div>
                   </article>
                 );
@@ -1964,7 +1966,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
           ) : (
           <table className="grid-table">
             <thead>
-              <tr><th>Code</th><th>Name</th><th>Owner</th><th>Phase</th><th>Due</th><th>Prog</th><th>Issues</th><th className="ta-r">Action</th></tr>
+              <tr><th>{t("Code")}</th><th>{t("Name")}</th><th>{t("Owner")}</th><th>{t("Phase")}</th><th>{t("Due")}</th><th>{t("Prog")}</th><th>{t("Issues")}</th><th className="ta-r">{t("Action")}</th></tr>
             </thead>
             <tbody>
               {app.projects.map((item) => (
@@ -1975,8 +1977,8 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                   <td className="muted">{item.phase}</td>
                   <td className="muted">{item.due}</td>
                   <td><div className="mini-bar"><span className={item.health} style={{ width: `${item.progress}%` }} /></div></td>
-                  <td className="muted">{(() => { const refs = issuesForProject(item.id); return refs.length ? <button type="button" className="link-chip" title={refs.map((issue) => issue.title).join('\n')} onClick={() => openReferencingIssues(refs.map((issue) => issue.id))}>{refs.length} issue{refs.length > 1 ? 's' : ''}</button> : '—'; })()}</td>
-                  <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setProjectForm({ code: item.code, name: item.name, owner: item.owner, phase: item.phase, due: item.due, progress: item.progress, health: item.health }); setEditor('project', item.id); }} label="Edit project" /><DeleteButton onClick={() => void deleteRecord('project', item.id)} label="Delete project" /></div></td>
+                  <td className="muted">{(() => { const refs = issuesForProject(item.id); return refs.length ? <button type="button" className="link-chip" title={t(refs.map((issue) => issue.title).join('\n'))} onClick={() => openReferencingIssues(refs.map((issue) => issue.id))}>{refs.length} {t("issue")}{refs.length > 1 ? t("s") : ''}</button> : '—'; })()}</td>
+                  <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setProjectForm({ code: item.code, name: item.name, owner: item.owner, phase: item.phase, due: item.due, progress: item.progress, health: item.health }); setEditor('project', item.id); }} label={t("Edit project")} /><DeleteButton onClick={() => void deleteRecord('project', item.id)} label={t("Delete project")} /></div></td>
                 </tr>
               ))}
             </tbody>
@@ -1985,27 +1987,27 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
         </Panel>
         {projectIntakeCollapsed ? (
           <aside className="workforce-controls-rail">
-            <button type="button" className="controls-rail-btn" onClick={() => setProjectIntakeCollapsed(false)} title="Expand add project" aria-label="Expand add project">
+            <button type="button" className="controls-rail-btn" onClick={() => setProjectIntakeCollapsed(false)} title={t("Expand add project")} aria-label={t("Expand add project")}>
               <ChevronLeft size={16} />
-              <span className="controls-rail-label">{editing.project ? 'Edit project' : 'Add project'}</span>
+              <span className="controls-rail-label">{editing.project ? t("Edit project") : t("Add project")}</span>
             </button>
           </aside>
         ) : (
-        <Panel title={editing.project ? 'Edit project' : 'Add project'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setProjectIntakeCollapsed(true)} title="Collapse add project" aria-label="Collapse add project"><ChevronRight size={14} /></button>}>
+        <Panel title={t(editing.project ? 'Edit project' : 'Add project')} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setProjectIntakeCollapsed(true)} title={t("Collapse add project")} aria-label={t("Collapse add project")}><ChevronRight size={14} /></button>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (editing.project) { void saveRecord('project', editing.project, projectForm, () => { setProjectForm(defaultProjectForm); setEditor('project', null); }); return; } void createRecord('project', projectForm, () => setProjectForm(defaultProjectForm)); }}>
             <div className="form-grid two">
-              <Field label="Code"><input value={projectForm.code} onChange={(event) => setProjectForm({ ...projectForm, code: event.target.value })} required /></Field>
-              <Field label="Phase"><input value={projectForm.phase} onChange={(event) => setProjectForm({ ...projectForm, phase: event.target.value })} required /></Field>
+              <Field label={t("Code")}><input value={projectForm.code} onChange={(event) => setProjectForm({ ...projectForm, code: event.target.value })} required /></Field>
+              <Field label={t("Phase")}><input value={projectForm.phase} onChange={(event) => setProjectForm({ ...projectForm, phase: event.target.value })} required /></Field>
             </div>
-            <Field label="Name"><input value={projectForm.name} onChange={(event) => setProjectForm({ ...projectForm, name: event.target.value })} required /></Field>
-            <Field label="Owner"><input value={projectForm.owner} onChange={(event) => setProjectForm({ ...projectForm, owner: event.target.value })} required /></Field>
+            <Field label={t("Name")}><input value={projectForm.name} onChange={(event) => setProjectForm({ ...projectForm, name: event.target.value })} required /></Field>
+            <Field label={t("Owner")}><input value={projectForm.owner} onChange={(event) => setProjectForm({ ...projectForm, owner: event.target.value })} required /></Field>
             <div className="form-grid two">
-              <Field label="Due"><input value={projectForm.due} onChange={(event) => setProjectForm({ ...projectForm, due: event.target.value })} required /></Field>
-              <Field label="Progress"><input type="number" min="0" max="100" value={projectForm.progress} onChange={(event) => setProjectForm({ ...projectForm, progress: Number(event.target.value) })} /></Field>
+              <Field label={t("Due")}><input value={projectForm.due} onChange={(event) => setProjectForm({ ...projectForm, due: event.target.value })} required /></Field>
+              <Field label={t("Progress")}><input type="number" min="0" max="100" value={projectForm.progress} onChange={(event) => setProjectForm({ ...projectForm, progress: Number(event.target.value) })} /></Field>
             </div>
-            <Field label="Health"><select value={projectForm.health} onChange={(event) => setProjectForm({ ...projectForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
-            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.project ? 'Save project' : 'Add project'}</button>
-            {editing.project ? <button className="ghost-btn" type="button" onClick={() => { setProjectForm(defaultProjectForm); setEditor('project', null); }}>Cancel edit</button> : null}
+            <Field label={t("Health")}><select value={projectForm.health} onChange={(event) => setProjectForm({ ...projectForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{t(item)}</option>)}</select></Field>
+            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.project ? t("Save project") : t("Add project")}</button>
+            {editing.project ? <button className="ghost-btn" type="button" onClick={() => { setProjectForm(defaultProjectForm); setEditor('project', null); }}>{t("Cancel edit")}</button> : null}
           </form>
         </Panel>
         )}
@@ -2047,7 +2049,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
       }
 
       if (selectedFile && !createdId) {
-        setError('Process saved, but the document could not be attached automatically. Open the process in edit mode and upload it again.');
+        setError("Process saved, but the document could not be attached automatically. Open the process in edit mode and upload it again.");
       }
 
       setProcessForm(defaultProcessForm);
@@ -2056,10 +2058,10 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
 
     return (
       <div className={processIntakeCollapsed ? 'workforce-layout collapsed' : 'workforce-layout'}>
-        <Panel title="SOC process inventory" className="workforce-planner" meta={<span className="muted">{processRows.length} tracked processes</span>}>
+        <Panel title={t("SOC process inventory")} className="workforce-planner" meta={<span className="muted">{processRows.length} {t("tracked processes")}</span>}>
           <table className="grid-table">
             <thead>
-              <tr><th>Code</th><th>Process</th><th>Owner</th><th>Cadence</th><th>Maturity</th><th>Document</th><th>Notes</th><th className="ta-r">Action</th></tr>
+              <tr><th>{t("Code")}</th><th>{t("Process")}</th><th>{t("Owner")}</th><th>{t("Cadence")}</th><th>{t("Maturity")}</th><th>{t("Document")}</th><th>{t("Notes")}</th><th className="ta-r">{t("Action")}</th></tr>
             </thead>
             <tbody>
               {processRows.map((item) => (
@@ -2074,9 +2076,9 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                       <div className="mini-bar"><span className={item.health} style={{ width: `${(item.maturity / 5) * 100}%` }} /></div>
                     </div>
                   </td>
-                  <td className="doc-cell">{item.attachmentPath ? <a className="doc-link" href={item.attachmentPath} target="_blank" rel="noreferrer" title={item.attachmentName || 'Open'}><Paperclip size={12} /> <span className="doc-link-name">{item.attachmentName || 'Open'}</span></a> : <span className="muted">No file</span>}</td>
+                  <td className="doc-cell">{item.attachmentPath ? <a className="doc-link" href={item.attachmentPath} target="_blank" rel="noreferrer" title={t(item.attachmentName || 'Open')}><Paperclip size={12} /> <span className="doc-link-name">{item.attachmentName || 'Open'}</span></a> : <span className="muted">{t("No file")}</span>}</td>
                   <td className="wrap-cell">{item.notes}</td>
-                  <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setProcessForm({ code: item.code, name: item.name, owner: item.owner, cadence: item.cadence, maturity: item.maturity, health: item.health, notes: item.notes }); setProcessFile(null); setEditor('process', item.id); }} label="Edit process" /><DeleteButton onClick={() => void deleteRecord('process', item.id)} label="Delete process" /></div></td>
+                  <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setProcessForm({ code: item.code, name: item.name, owner: item.owner, cadence: item.cadence, maturity: item.maturity, health: item.health, notes: item.notes }); setProcessFile(null); setEditor('process', item.id); }} label={t("Edit process")} /><DeleteButton onClick={() => void deleteRecord('process', item.id)} label={t("Delete process")} /></div></td>
                 </tr>
               ))}
             </tbody>
@@ -2084,27 +2086,27 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
         </Panel>
         {processIntakeCollapsed ? (
           <aside className="workforce-controls-rail">
-            <button type="button" className="controls-rail-btn" onClick={() => setProcessIntakeCollapsed(false)} title="Expand add process" aria-label="Expand add process">
+            <button type="button" className="controls-rail-btn" onClick={() => setProcessIntakeCollapsed(false)} title={t("Expand add process")} aria-label={t("Expand add process")}>
               <ChevronLeft size={16} />
-              <span className="controls-rail-label">{editing.process ? 'Edit process' : 'Add process'}</span>
+              <span className="controls-rail-label">{editing.process ? t("Edit process") : t("Add process")}</span>
             </button>
           </aside>
         ) : (
-        <Panel title={editing.process ? 'Edit process' : 'Add process'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setProcessIntakeCollapsed(true)} title="Collapse add process" aria-label="Collapse add process"><ChevronRight size={14} /></button>}>
+        <Panel title={t(editing.process ? 'Edit process' : 'Add process')} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setProcessIntakeCollapsed(true)} title={t("Collapse add process")} aria-label={t("Collapse add process")}><ChevronRight size={14} /></button>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); void submitProcessForm(); }}>
             <div className="form-grid two">
-              <Field label="Code"><input value={processForm.code} onChange={(event) => setProcessForm({ ...processForm, code: event.target.value })} required /></Field>
-              <Field label="Maturity"><input type="number" min="0" max="5" value={processForm.maturity} onChange={(event) => setProcessForm({ ...processForm, maturity: Number(event.target.value) })} required /></Field>
+              <Field label={t("Code")}><input value={processForm.code} onChange={(event) => setProcessForm({ ...processForm, code: event.target.value })} required /></Field>
+              <Field label={t("Maturity")}><input type="number" min="0" max="5" value={processForm.maturity} onChange={(event) => setProcessForm({ ...processForm, maturity: Number(event.target.value) })} required /></Field>
             </div>
-            <Field label="Process name"><input value={processForm.name} onChange={(event) => setProcessForm({ ...processForm, name: event.target.value })} required /></Field>
-            <Field label="Owner"><input value={processForm.owner} onChange={(event) => setProcessForm({ ...processForm, owner: event.target.value })} required /></Field>
-            <Field label="Cadence"><input value={processForm.cadence} onChange={(event) => setProcessForm({ ...processForm, cadence: event.target.value })} placeholder="Daily, weekly, monthly" required /></Field>
-            <Field label="Health"><select value={processForm.health} onChange={(event) => setProcessForm({ ...processForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
-            <Field label="Process document"><input key={`process-file-${editing.process ?? 'new'}`} type="file" accept=".pdf,.doc,.docx,.txt,.md,.rtf" onChange={(event) => setProcessFile(event.target.files?.[0] ?? null)} /></Field>
-            <div className="field-hint">Attach the current SOP, runbook, or work instruction. Max file size: {DOCUMENT_UPLOAD_MAX_MB} MB. Upload replaces any existing document.</div>
-            <Field label="Notes"><textarea rows={5} value={processForm.notes} onChange={(event) => setProcessForm({ ...processForm, notes: event.target.value })} /></Field>
-            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.process ? 'Save process' : 'Add process'}</button>
-            {editing.process ? <button className="ghost-btn" type="button" onClick={() => { setProcessForm(defaultProcessForm); setProcessFile(null); setEditor('process', null); }}>Cancel edit</button> : null}
+            <Field label={t("Process name")}><input value={processForm.name} onChange={(event) => setProcessForm({ ...processForm, name: event.target.value })} required /></Field>
+            <Field label={t("Owner")}><input value={processForm.owner} onChange={(event) => setProcessForm({ ...processForm, owner: event.target.value })} required /></Field>
+            <Field label={t("Cadence")}><input value={processForm.cadence} onChange={(event) => setProcessForm({ ...processForm, cadence: event.target.value })} placeholder={t("Daily, weekly, monthly")} required /></Field>
+            <Field label={t("Health")}><select value={processForm.health} onChange={(event) => setProcessForm({ ...processForm, health: event.target.value as Health })}>{healthOptions.map((item) => <option key={item} value={item}>{t(item)}</option>)}</select></Field>
+            <Field label={t("Process document")}><input key={`process-file-${editing.process ?? 'new'}`} type="file" accept=".pdf,.doc,.docx,.txt,.md,.rtf" onChange={(event) => setProcessFile(event.target.files?.[0] ?? null)} /></Field>
+            <div className="field-hint">{t("Attach the current SOP, runbook, or work instruction. Max file size:")} {DOCUMENT_UPLOAD_MAX_MB} {t("MB. Upload replaces any existing document.")}</div>
+            <Field label={t("Notes")}><textarea rows={5} value={processForm.notes} onChange={(event) => setProcessForm({ ...processForm, notes: event.target.value })} /></Field>
+            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.process ? t("Save process") : t("Add process")}</button>
+            {editing.process ? <button className="ghost-btn" type="button" onClick={() => { setProcessForm(defaultProcessForm); setProcessFile(null); setEditor('process', null); }}>{t("Cancel edit")}</button> : null}
           </form>
         </Panel>
         )}
@@ -2115,10 +2117,10 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
   function renderContacts() {
     return (
       <div className={contactIntakeCollapsed ? 'workforce-layout collapsed' : 'workforce-layout'}>
-        <Panel title="Staff, vendor, and key contacts" className="workforce-planner" meta={<span className="muted">{app.contacts.length} records</span>}>
+        <Panel title={t("Staff, vendor, and key contacts")} className="workforce-planner" meta={<span className="muted">{app.contacts.length} {t("records")}</span>}>
           <table className="grid-table">
             <thead>
-              <tr><th>Scope</th><th>Name</th><th>Role</th><th>Sub Team</th><th>Lead</th><th>Email</th><th>Phone</th><th className="ta-r">Action</th></tr>
+              <tr><th>{t("Scope")}</th><th>{t("Name")}</th><th>{t("Role")}</th><th>{t("Sub Team")}</th><th>{t("Lead")}</th><th>{t("Email")}</th><th>{t("Phone")}</th><th className="ta-r">{t("Action")}</th></tr>
             </thead>
             <tbody>
               {app.contacts.map((item) => {
@@ -2129,15 +2131,15 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                     <td>{item.name}</td>
                     <td className="muted">{item.role}</td>
                     <td className="ref">{item.channel}</td>
-                    <td>{item.isLead ? <span className="status-pill up">Lead</span> : <span className="muted">No</span>}</td>
-                    <td className="wrap-cell">{item.email ? <a className="doc-link" href={`mailto:${item.email}`}>{item.email}</a> : 'N/A'}</td>
+                    <td>{item.isLead ? <span className="status-pill up">{t("Lead")}</span> : <span className="muted">{t("No")}</span>}</td>
+                    <td className="wrap-cell">{item.email ? <a className="doc-link" href={`mailto:${item.email}`}>{item.email}</a> : t("N/A")}</td>
                     <td className="wrap-cell">
                       <span className="contact-phone-cell">
                         <span>{item.phone || 'N/A'}</span>
-                        {whatsappLink ? <a className="icon-btn whatsapp-link" href={whatsappLink} target="_blank" rel="noreferrer" title={`Open WhatsApp chat for ${item.name}`} aria-label={`Open WhatsApp chat for ${item.name}`}><MessageCircle size={14} /></a> : null}
+                        {whatsappLink ? <a className="icon-btn whatsapp-link" href={whatsappLink} target="_blank" rel="noreferrer" title={t("Open WhatsApp chat for {{value0}}", { value0: item.name })} aria-label={t("Open WhatsApp chat for {{value0}}", { value0: item.name })}><MessageCircle size={14} /></a> : null}
                       </span>
                     </td>
-                    <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setContactForm({ name: item.name, role: item.role, channel: item.channel, email: item.email, phone: item.phone, scope: item.scope, isLead: item.isLead }); setEditor('contact', item.id); }} label="Edit contact" /><DeleteButton onClick={() => void deleteRecord('contact', item.id)} label="Delete contact" /></div></td>
+                    <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setContactForm({ name: item.name, role: item.role, channel: item.channel, email: item.email, phone: item.phone, scope: item.scope, isLead: item.isLead }); setEditor('contact', item.id); }} label={t("Edit contact")} /><DeleteButton onClick={() => void deleteRecord('contact', item.id)} label={t("Delete contact")} /></div></td>
                   </tr>
                 );
               })}
@@ -2146,23 +2148,23 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
         </Panel>
         {contactIntakeCollapsed ? (
           <aside className="workforce-controls-rail">
-            <button type="button" className="controls-rail-btn" onClick={() => setContactIntakeCollapsed(false)} title="Expand add contact" aria-label="Expand add contact">
+            <button type="button" className="controls-rail-btn" onClick={() => setContactIntakeCollapsed(false)} title={t("Expand add contact")} aria-label={t("Expand add contact")}>
               <ChevronLeft size={16} />
-              <span className="controls-rail-label">{editing.contact ? 'Edit contact' : 'Add contact'}</span>
+              <span className="controls-rail-label">{editing.contact ? t("Edit contact") : t("Add contact")}</span>
             </button>
           </aside>
         ) : (
-        <Panel title={editing.contact ? 'Edit contact' : 'Add contact'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setContactIntakeCollapsed(true)} title="Collapse add contact" aria-label="Collapse add contact"><ChevronRight size={14} /></button>}>
+        <Panel title={t(editing.contact ? 'Edit contact' : 'Add contact')} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setContactIntakeCollapsed(true)} title={t("Collapse add contact")} aria-label={t("Collapse add contact")}><ChevronRight size={14} /></button>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (editing.contact) { void saveRecord('contact', editing.contact, contactForm, () => { setContactForm(defaultContactForm); setEditor('contact', null); }); return; } void createRecord('contact', contactForm, () => setContactForm(defaultContactForm)); }}>
-            <Field label="Name"><input value={contactForm.name} onChange={(event) => setContactForm({ ...contactForm, name: event.target.value })} required /></Field>
-            <Field label="Role"><input value={contactForm.role} onChange={(event) => setContactForm({ ...contactForm, role: event.target.value })} required /></Field>
-            <Field label="Sub Team"><input value={contactForm.channel} onChange={(event) => setContactForm({ ...contactForm, channel: event.target.value })} required /></Field>
-            <Field label="Email"><input type="email" value={contactForm.email} onChange={(event) => setContactForm({ ...contactForm, email: event.target.value })} /></Field>
-            <Field label="Phone"><input value={contactForm.phone} onChange={(event) => setContactForm({ ...contactForm, phone: event.target.value })} /></Field>
-            <Field label="Scope"><select value={contactForm.scope} onChange={(event) => setContactForm({ ...contactForm, scope: event.target.value })}>{contactScopeOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
-            <label className="check-row"><input type="checkbox" checked={contactForm.isLead} onChange={(event) => setContactForm({ ...contactForm, isLead: event.target.checked })} /> Team lead</label>
-            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.contact ? 'Save contact' : 'Add contact'}</button>
-            {editing.contact ? <button className="ghost-btn" type="button" onClick={() => { setContactForm(defaultContactForm); setEditor('contact', null); }}>Cancel edit</button> : null}
+            <Field label={t("Name")}><input value={contactForm.name} onChange={(event) => setContactForm({ ...contactForm, name: event.target.value })} required /></Field>
+            <Field label={t("Role")}><input value={contactForm.role} onChange={(event) => setContactForm({ ...contactForm, role: event.target.value })} required /></Field>
+            <Field label={t("Sub Team")}><input value={contactForm.channel} onChange={(event) => setContactForm({ ...contactForm, channel: event.target.value })} required /></Field>
+            <Field label={t("Email")}><input type="email" value={contactForm.email} onChange={(event) => setContactForm({ ...contactForm, email: event.target.value })} /></Field>
+            <Field label={t("Phone")}><input value={contactForm.phone} onChange={(event) => setContactForm({ ...contactForm, phone: event.target.value })} /></Field>
+            <Field label={t("Scope")}><select value={contactForm.scope} onChange={(event) => setContactForm({ ...contactForm, scope: event.target.value })}>{contactScopeOptions.map((item) => <option key={item} value={item}>{t(item)}</option>)}</select></Field>
+            <label className="check-row"><input type="checkbox" checked={contactForm.isLead} onChange={(event) => setContactForm({ ...contactForm, isLead: event.target.checked })} /> {t("Team lead")}</label>
+            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.contact ? t("Save contact") : t("Add contact")}</button>
+            {editing.contact ? <button className="ghost-btn" type="button" onClick={() => { setContactForm(defaultContactForm); setEditor('contact', null); }}>{t("Cancel edit")}</button> : null}
           </form>
         </Panel>
         )}
@@ -2173,10 +2175,10 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
   function renderNotes() {
     return (
       <div className="grid">
-        <Panel title="Daily notes" span={8} meta={<span className="muted">{notesForSelectedDate.length} notes on {shortDateLabel(noteForm.noteDate)}</span>}>
+        <Panel title={t("Daily notes")} span={8} meta={<span className="muted">{notesForSelectedDate.length} {t("notes on")} {shortDateLabel(noteForm.noteDate)}</span>}>
           <div className="day-strip pad note-strip">
-            <button type="button" className="ghost-btn" onClick={() => setNoteForm((current) => ({ ...current, noteDate: shiftMonth(current.noteDate, -1) }))}>Prev month</button>
-            <Field label="Month"><input type="month" value={monthInputValue(noteForm.noteDate)} onChange={(event) => {
+            <button type="button" className="ghost-btn" onClick={() => setNoteForm((current) => ({ ...current, noteDate: shiftMonth(current.noteDate, -1) }))}>{t("Prev month")}</button>
+            <Field label={t("Month")}><input type="month" value={monthInputValue(noteForm.noteDate)} onChange={(event) => {
               const nextMonth = event.target.value;
               if (!nextMonth) {
                 return;
@@ -2185,25 +2187,25 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
               setNoteForm((current) => ({ ...current, noteDate: `${year}-${month}-01` }));
             }} /></Field>
             <strong className="month-label">{monthKeyLabel(noteForm.noteDate)}</strong>
-            <button type="button" className="ghost-btn" onClick={() => setNoteForm((current) => ({ ...current, noteDate: shiftMonth(current.noteDate, 1) }))}>Next month</button>
+            <button type="button" className="ghost-btn" onClick={() => setNoteForm((current) => ({ ...current, noteDate: shiftMonth(current.noteDate, 1) }))}>{t("Next month")}</button>
           </div>
           <div className="day-strip pad">
             {noteMonthDates.map((date) => (
               <button key={date} type="button" className={date === noteForm.noteDate ? 'day-btn active' : 'day-btn'} onClick={() => setNoteForm((current) => ({ ...current, noteDate: date }))}>
                 <strong>{shortDateLabel(date)}</strong>
                 <span>{dayLabel(date)}</span>
-                <small>{app.notes.filter((item) => item.noteDate === date).length} note</small>
+                <small>{app.notes.filter((item) => item.noteDate === date).length} {t("note")}</small>
               </button>
             ))}
           </div>
           <div className="summary-grid note-summary-grid">
-            <article className="summary-card"><span>Selected date</span><strong>{shortDateLabel(noteForm.noteDate)}</strong><small>{notesForSelectedDate.length} entries</small></article>
-            <article className="summary-card"><span>Month</span><strong>{monthKeyLabel(noteForm.noteDate)}</strong><small>{noteDatesInMonth.size} active days</small></article>
-            <article className="summary-card"><span>Pinned</span><strong>{pinnedNotesForSelectedDate.length}</strong><small>flagged for follow-up</small></article>
+            <article className="summary-card"><span>{t("Selected date")}</span><strong>{shortDateLabel(noteForm.noteDate)}</strong><small>{notesForSelectedDate.length} {t("entries")}</small></article>
+            <article className="summary-card"><span>{t("Month")}</span><strong>{monthKeyLabel(noteForm.noteDate)}</strong><small>{noteDatesInMonth.size} {t("active days")}</small></article>
+            <article className="summary-card"><span>{t("Pinned")}</span><strong>{pinnedNotesForSelectedDate.length}</strong><small>{t("flagged for follow-up")}</small></article>
           </div>
           <table className="grid-table">
             <thead>
-              <tr><th>Date</th><th>Logged</th><th>Text</th><th>Pinned</th><th className="ta-r">Action</th></tr>
+              <tr><th>{t("Date")}</th><th>{t("Logged")}</th><th>{t("Text")}</th><th>{t("Pinned")}</th><th className="ta-r">{t("Action")}</th></tr>
             </thead>
             <tbody>
               {notesForSelectedDate.map((item) => (
@@ -2211,20 +2213,20 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
                   <td className="muted">{shortDateLabel(item.noteDate)}</td>
                   <td className="muted">{formatStamp(item.createdAt)}</td>
                   <td className="wrap-cell">{item.text}</td>
-                  <td>{item.pinned ? <CheckCircle2 size={14} /> : 'No'}</td>
-                  <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setNoteForm({ noteDate: item.noteDate, text: item.text, pinned: item.pinned }); setEditor('note', item.id); }} label="Edit note" /><DeleteButton onClick={() => void deleteRecord('note', item.id)} label="Delete note" /></div></td>
+                  <td>{item.pinned ? <CheckCircle2 size={14} /> : t("No")}</td>
+                  <td className="ta-r"><div className="action-row"><EditButton onClick={() => { setNoteForm({ noteDate: item.noteDate, text: item.text, pinned: item.pinned }); setEditor('note', item.id); }} label={t("Edit note")} /><DeleteButton onClick={() => void deleteRecord('note', item.id)} label={t("Delete note")} /></div></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </Panel>
-        <Panel title={editing.note ? 'Edit daily note' : 'Add daily note'} span={4} meta={<span className="muted">date, month, year, pinned</span>}>
+        <Panel title={t(editing.note ? 'Edit daily note' : 'Add daily note')} span={4} meta={<span className="muted">{t("date, month, year, pinned")}</span>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (editing.note) { void saveRecord('note', editing.note, noteForm, () => { resetNoteForm(); setEditor('note', null); }); return; } void createRecord('note', noteForm, () => resetNoteForm()); }}>
-            <Field label="Entry date"><input type="date" value={noteForm.noteDate} onChange={(event) => setNoteForm({ ...noteForm, noteDate: event.target.value })} required /></Field>
-            <Field label="Note"><textarea value={noteForm.text} onChange={(event) => setNoteForm({ ...noteForm, text: event.target.value })} rows={6} required /></Field>
-            <label className="check-row"><input type="checkbox" checked={noteForm.pinned} onChange={(event) => setNoteForm({ ...noteForm, pinned: event.target.checked })} /> Pin note</label>
-            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.note ? 'Save note' : 'Add note'}</button>
-            {editing.note ? <button className="ghost-btn" type="button" onClick={() => { resetNoteForm(); setEditor('note', null); }}>Cancel edit</button> : null}
+            <Field label={t("Entry date")}><input type="date" value={noteForm.noteDate} onChange={(event) => setNoteForm({ ...noteForm, noteDate: event.target.value })} required /></Field>
+            <Field label={t("Note")}><textarea value={noteForm.text} onChange={(event) => setNoteForm({ ...noteForm, text: event.target.value })} rows={6} required /></Field>
+            <label className="check-row"><input type="checkbox" checked={noteForm.pinned} onChange={(event) => setNoteForm({ ...noteForm, pinned: event.target.checked })} /> {t("Pin note")}</label>
+            <button className="primary-btn" type="submit" disabled={Boolean(busy)}><Plus size={14} /> {editing.note ? t("Save note") : t("Add note")}</button>
+            {editing.note ? <button className="ghost-btn" type="button" onClick={() => { resetNoteForm(); setEditor('note', null); }}>{t("Cancel edit")}</button> : null}
           </form>
         </Panel>
       </div>
@@ -2234,19 +2236,19 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
   function renderAdvisor() {
     return (
       <div className="grid">
-        <Panel title="Latest executive update" span={7} meta={renderAdvisorMeta('Generate', true)}>
+        <Panel title={t("Latest executive update")} span={7} meta={renderAdvisorMeta('Generate', true)}>
           <div className="brief-card large">
             <div className="brief-meta">
-              <span className={`source-badge ${latestBrief?.source ?? 'fallback'}`}>{latestBrief?.source === 'llm' ? 'Cisco LLM' : 'Local fallback'}</span>
-              <span className="muted">{latestBrief ? `${latestBrief.briefDate ? `for ${shortDateLabel(latestBrief.briefDate)} · ` : ''}${formatStamp(latestBrief.createdAt)}` : 'No update generated yet'}</span>
+              <span className={`source-badge ${latestBrief?.source ?? 'fallback'}`}>{latestBrief?.source === 'llm' ? t("Cisco LLM") : t("Local fallback")}</span>
+              <span className="muted">{latestBrief ? `${latestBrief.briefDate ? `for ${shortDateLabel(latestBrief.briefDate)} · ` : ''}${formatStamp(latestBrief.createdAt)}` : t("No update generated yet")}</span>
             </div>
             <AdvisorMarkdown content={latestBrief?.content} emptyText="No update available." />
           </div>
         </Panel>
-        <Panel title="Update history" span={7} meta={<span className="muted">{app.advisorBriefs.length} stored updates</span>}>
+        <Panel title={t("Update history")} span={7} meta={<span className="muted">{app.advisorBriefs.length} {t("stored updates")}</span>}>
           <table className="grid-table">
             <thead>
-              <tr><th>For</th><th>Created</th><th>Source</th><th>Content</th></tr>
+              <tr><th>{t("For")}</th><th>{t("Created")}</th><th>{t("Source")}</th><th>{t("Content")}</th></tr>
             </thead>
             <tbody>
               {app.advisorBriefs.map((item) => (
@@ -2269,72 +2271,79 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
     const currentTab = tabs.some((tab) => tab.key === settingsTab) ? settingsTab : 'appearance';
     const panes: Record<SettingsTab, () => ReactNode> = {
       system: () => (
-        <Panel title="System status" meta={<span className="muted">server configuration</span>}>
+        <Panel title={t("System status")} meta={<span className="muted">{t("server configuration")}</span>}>
           <div className="status-card-grid">
-            <div className="status-card"><Database size={16} /><div><strong>Data source</strong><span>Shared SQLite server database</span></div></div>
-            <div className="status-card"><Globe size={16} /><div><strong>LLM route</strong><span>{app.settings.llmConfigured ? 'Cisco Bridge configured' : 'Missing credentials'}</span></div></div>
-            <div className="status-card"><ShieldCheck size={16} /><div><strong>Mode</strong><span>Read-only chief of staff advisor</span></div></div>
+            <div className="status-card"><Database size={16} /><div><strong>{t("Data source")}</strong><span>{t("Shared SQLite server database")}</span></div></div>
+            <div className="status-card"><Globe size={16} /><div><strong>{t("LLM route")}</strong><span>{app.settings.llmConfigured ? t("Cisco Bridge configured") : t("Missing credentials")}</span></div></div>
+            <div className="status-card"><ShieldCheck size={16} /><div><strong>{t("Mode")}</strong><span>{t("Read-only chief of staff advisor")}</span></div></div>
           </div>
         </Panel>
       ),
       clocks: () => (
-        <Panel title="World clocks" meta={<span className="muted">shown in the top bar</span>}>
+        <Panel title={t("World clocks")} meta={<span className="muted">{t("shown in the top bar")}</span>}>
           <div className="clock-config">
-            <Field label="Clock A">
-              <select value={clockZones[0]} onChange={(event) => setClockZones([event.target.value, clockZones[1]])}>{timeZoneOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
+            <Field label={t("Clock A")}>
+              <select value={clockZones[0]} onChange={(event) => setClockZones([event.target.value, clockZones[1]])}>{timeZoneOptions.map((item) => <option key={item.value} value={item.value}>{t(item.label)}</option>)}</select>
             </Field>
-            <Field label="Clock B">
-              <select value={clockZones[1]} onChange={(event) => setClockZones([clockZones[0], event.target.value])}>{timeZoneOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
+            <Field label={t("Clock B")}>
+              <select value={clockZones[1]} onChange={(event) => setClockZones([clockZones[0], event.target.value])}>{timeZoneOptions.map((item) => <option key={item.value} value={item.value}>{t(item.label)}</option>)}</select>
             </Field>
-            <button className="primary-btn" type="button" onClick={() => void saveClockZones()} disabled={busy === 'clock-zones'}><Clock3 size={14} /> Save clocks</button>
+            <button className="primary-btn" type="button" onClick={() => void saveClockZones()} disabled={busy === 'clock-zones'}><Clock3 size={14} /> {t("Save clocks")}</button>
           </div>
         </Panel>
       ),
       appearance: () => (
-        <Panel title="Appearance" meta={<span className="muted">display preferences</span>}>
+        <Panel title={t("Appearance")} meta={<span className="muted">{t("display preferences")}</span>}>
           <div className="appearance-config">
             <div className="appearance-row">
               <div className="appearance-label">
-                <strong>Night mode</strong>
-                <span className="muted">On for the dark colour scheme, off for day</span>
+                <strong>{t("Language")}</strong>
+                <span className="muted">{t("Choose the interface language. Saved in this browser.")}</span>
               </div>
-              <ToggleSwitch checked={theme === 'night'} onChange={(next) => setTheme(next ? 'night' : 'day')} ariaLabel="Night mode" />
+              <LanguageSwitcher />
             </div>
             <div className="appearance-row">
               <div className="appearance-label">
-                <strong>Tile view</strong>
-                <span className="muted">On shows Issues, Objectives and Projects as tiles, off as a list</span>
+                <strong>{t("Night mode")}</strong>
+                <span className="muted">{t("On for the dark colour scheme, off for day")}</span>
               </div>
-              <ToggleSwitch checked={registerView === 'tiles'} onChange={(next) => setRegisterView(next ? 'tiles' : 'list')} ariaLabel="Tile view" />
+              <ToggleSwitch checked={theme === 'night'} onChange={(next) => setTheme(next ? 'night' : 'day')} ariaLabel={t("Night mode")} />
             </div>
             <div className="appearance-row">
               <div className="appearance-label">
-                <strong>Expand panels by default</strong>
-                <span className="muted">On starts the "Add" panels expanded, off starts them collapsed</span>
+                <strong>{t("Tile view")}</strong>
+                <span className="muted">{t("On shows Issues, Objectives and Projects as tiles, off as a list")}</span>
               </div>
-              <ToggleSwitch checked={!panelsCollapsedByDefault} onChange={(next) => applyPanelDefaultCollapsed(!next)} ariaLabel="Expand panels by default" />
+              <ToggleSwitch checked={registerView === 'tiles'} onChange={(next) => setRegisterView(next ? 'tiles' : 'list')} ariaLabel={t("Tile view")} />
+            </div>
+            <div className="appearance-row">
+              <div className="appearance-label">
+                <strong>{t("Expand panels by default")}</strong>
+                <span className="muted">{t("On starts the \"Add\" panels expanded, off starts them collapsed")}</span>
+              </div>
+              <ToggleSwitch checked={!panelsCollapsedByDefault} onChange={(next) => applyPanelDefaultCollapsed(!next)} ariaLabel={t("Expand panels by default")} />
             </div>
           </div>
         </Panel>
       ),
       readiness: () => (
-        <Panel title="SOC Readiness levers" meta={<span className="muted">tune the score model</span>}>
+        <Panel title={t("SOC Readiness levers")} meta={<span className="muted">{t("tune the score model")}</span>}>
           <div className="lever-config">
             <div className="lever-preview">
-              <span className="muted">Current readiness score with these settings</span>
+              <span className="muted">{t("Current readiness score with these settings")}</span>
               <strong className="lever-score">{summary ? summary.score : '—'}</strong>
             </div>
             {readinessLeverDefs.map((lever) => (
               <div className="lever-row" key={lever.key}>
                 <div className="lever-head">
-                  <strong>{lever.label}</strong>
+                  <strong>{t(lever.label)}</strong>
                   <span className="lever-value">{readinessLevers[lever.key]}</span>
                 </div>
-                <input type="range" min={lever.min} max={lever.max} step={1} value={readinessLevers[lever.key]} onChange={(event) => setReadinessLevers({ ...readinessLevers, [lever.key]: Number(event.target.value) })} aria-label={lever.label} />
-                <span className="muted lever-hint">{lever.hint}</span>
+                <input type="range" min={lever.min} max={lever.max} step={1} value={readinessLevers[lever.key]} onChange={(event) => setReadinessLevers({ ...readinessLevers, [lever.key]: Number(event.target.value) })} aria-label={t(lever.label)} />
+                <span className="muted lever-hint">{t(lever.hint)}</span>
               </div>
             ))}
-            <button className="ghost-btn" type="button" onClick={() => setReadinessLevers(defaultReadinessLevers)}>Reset to defaults</button>
+            <button className="ghost-btn" type="button" onClick={() => setReadinessLevers(defaultReadinessLevers)}>{t("Reset to defaults")}</button>
           </div>
         </Panel>
       ),
@@ -2345,12 +2354,12 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
 
     return (
       <div className="admin-console">
-        <div className="ac-tabs" role="tablist" aria-label="Settings sections">
+        <div className="ac-tabs" role="tablist" aria-label={t("Settings sections")}>
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <button key={tab.key} type="button" role="tab" id={`settings-tab-${tab.key}`} aria-selected={currentTab === tab.key} aria-controls="settings-panel" className={currentTab === tab.key ? 'ac-tab active' : 'ac-tab'} onClick={() => setSettingsTab(tab.key)}>
-                <Icon size={16} /> {tab.label}
+                <Icon size={16} /> {t(tab.label)}
               </button>
             );
           })}
@@ -2391,26 +2400,26 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
             {topClocks.map((item) => (
               <div className="clock-box" key={item.label}>
                 <span className="clock-time">{formatClock(now, item.zone)}</span>
-                <span className="clock-date">{item.label} · {formatDate(now, item.zone)}</span>
+                <span className="clock-date">{t(item.label)} · {formatDate(now, item.zone)}</span>
               </div>
             ))}
           </div>
-          <div className="user-chip" title={`${user.username} (${user.role})`}>
+          <div className="user-chip" title={t(`${user.username} (${user.role})`)}>
             <span className="user-chip-name">{user.displayName || user.username}</span>
-            <span className="user-chip-role">{user.role}</span>
-            <button type="button" className="user-chip-btn" onClick={onSignOut} title="Sign out" aria-label="Sign out"><LogOut size={14} /></button>
+            <span className="user-chip-role">{t(user.role)}</span>
+            <button type="button" className="user-chip-btn" onClick={onSignOut} title={t("Sign out")} aria-label={t("Sign out")}><LogOut size={14} /></button>
           </div>
         </div>
       </header>
 
       <div className="shell">
-        <nav className="rail" aria-label="Modules">
+        <nav className="rail" aria-label={t("Modules")}>
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
-              <button key={item.key} type="button" className={active === item.key ? 'rail-btn active' : 'rail-btn'} onClick={() => setActive(item.key as ActiveView)} title={item.label}>
+              <button key={item.key} type="button" className={active === item.key ? 'rail-btn active' : 'rail-btn'} onClick={() => setActive(item.key as ActiveView)} title={t(item.label)}>
                 <Icon size={18} aria-hidden="true" />
-                <span>{item.label}</span>
+                <span>{t(item.label)}</span>
               </button>
             );
           })}
@@ -2419,36 +2428,34 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
         <main className="board">
           <div className="page-head">
             <div>
-              <h1>{navItems.find((item) => item.key === active)?.label ?? 'Command'}</h1>
-              <p>{active === 'overview' ? 'One-page operational command view backed by the shared web database.' : 'Live module backed by the web API and shared planning database.'}</p>
+              <h1>{t(navItems.find((item) => item.key === active)?.label ?? 'Command')}</h1>
+              <p>{active === 'overview' ? t("One-page operational command view backed by the shared web database.") : t("Live module backed by the web API and shared planning database.")}</p>
             </div>
             <div className="page-actions">
-              <button className="ghost-btn" type="button" onClick={() => void refresh()} disabled={Boolean(busy)}><RefreshCw size={12} /> Reload</button>
+              <button className="ghost-btn" type="button" onClick={() => void refresh()} disabled={Boolean(busy)}><RefreshCw size={12} /> {t("Reload")}</button>
             </div>
           </div>
 
-          {error ? <div className="error-banner">{error}</div> : null}
+          {error ? <div className="error-banner">{t(error)}</div> : null}
           {moduleContent[active]}
         </main>
       </div>
 
-      <footer className="statusbar" aria-label="Runtime connectivity status">
+      <footer className="statusbar" aria-label={t("Runtime connectivity status")}>
         <div className="statusbar-group">
-          <span className="statusbar-label">Runtime</span>
+          <span className="statusbar-label">{t("Runtime")}</span>
           <span className={dbConnected ? 'status-pill up' : 'status-pill down'}>
-            <Database size={12} aria-hidden="true" />
-            SQLite {dbConnected ? 'Connected' : 'Disconnected'}
+            <Database size={12} aria-hidden="true" /> {t("SQLite")} {dbConnected ? t("Connected") : t("Disconnected")}
           </span>
           <span className={llmConnected ? 'status-pill up' : 'status-pill warn'}>
-            <Sparkles size={12} aria-hidden="true" />
-            LLM {llmConnected ? 'Configured' : 'Unavailable'}
+            <Sparkles size={12} aria-hidden="true" /> {t("LLM")} {llmConnected ? t("Configured") : t("Unavailable")}
           </span>
         </div>
         <div className="statusbar-group end">
-          <span className="statusbar-label">Source</span>
+          <span className="statusbar-label">{t("Source")}</span>
           <span className="statusbar-text">{app.settings.dataSource}</span>
           <span className="statusbar-sep" aria-hidden="true">|</span>
-          <span className="statusbar-text">{busy ? `Busy: ${busy}` : 'Idle'}</span>
+          <span className="statusbar-text">{busy ? `Busy: ${busy}` : t("Idle")}</span>
         </div>
       </footer>
 
@@ -2456,31 +2463,31 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
         {assistantOpen ? (
           <div className={assistantExpanded ? 'assistant-dock expanded' : 'assistant-dock'}>
             <header className="assistant-head">
-              <div className="assistant-title"><Sparkles size={14} /> Keo · AI SOC Assistant</div>
+              <div className="assistant-title"><Sparkles size={14} /> {t("Keo · AI SOC Assistant")}</div>
               <div className="assistant-head-actions">
-                {assistantMessages.length ? <button type="button" className="icon-btn" onClick={() => setAssistantMessages([])} title="Clear chat" aria-label="Clear chat"><Trash2 size={14} /></button> : null}
-                <button type="button" className="icon-btn" onClick={() => setAssistantExpanded((current) => !current)} title={assistantExpanded ? 'Compact Keo' : 'Expand Keo'} aria-label={assistantExpanded ? 'Compact Keo' : 'Expand Keo'}>{assistantExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
-                <button type="button" className="icon-btn" onClick={() => setAssistantOpen(false)} title="Close Keo" aria-label="Close Keo"><ChevronDown size={14} /></button>
+                {assistantMessages.length ? <button type="button" className="icon-btn" onClick={() => setAssistantMessages([])} title={t("Clear chat")} aria-label={t("Clear chat")}><Trash2 size={14} /></button> : null}
+                <button type="button" className="icon-btn" onClick={() => setAssistantExpanded((current) => !current)} title={t(assistantExpanded ? 'Compact Keo' : 'Expand Keo')} aria-label={t(assistantExpanded ? 'Compact Keo' : 'Expand Keo')}>{assistantExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
+                <button type="button" className="icon-btn" onClick={() => setAssistantOpen(false)} title={t("Close Keo")} aria-label={t("Close Keo")}><ChevronDown size={14} /></button>
               </div>
             </header>
             <div className="assistant-log" ref={assistantLogRef}>
               {assistantMessages.length === 0 ? (
-                <div className="assistant-hint">Hi, I'm Keo. Ask me about roster coverage, open issues, objectives, KPIs, standup tasks, or notes — I only spill the tea that's actually in the cockpit data.</div>
+                <div className="assistant-hint">{t("Hi, I'm Keo. Ask me about roster coverage, open issues, objectives, KPIs, standup tasks, or notes — I only spill the tea that's actually in the cockpit data.")}</div>
               ) : assistantMessages.map((message, index) => (
                 <div key={index} className={`assistant-msg ${message.role}`}>
                   {message.role === 'assistant' ? <AdvisorMarkdown content={message.content} emptyText="" compact /> : <span>{message.content}</span>}
                 </div>
               ))}
-              {assistantBusy ? <div className="assistant-msg assistant"><span className="muted">Thinking…</span></div> : null}
+              {assistantBusy ? <div className="assistant-msg assistant"><span className="muted">{t("Thinking…")}</span></div> : null}
               {assistantError ? <div className="assistant-error">{assistantError}</div> : null}
             </div>
             <form className="assistant-input" onSubmit={(event) => { event.preventDefault(); void sendAssistant(); }}>
-              <input value={assistantInput} onChange={(event) => setAssistantInput(event.target.value)} placeholder={llmConnected ? 'Ask Keo about the cockpit…' : 'LLM not configured'} disabled={assistantBusy || !llmConnected} />
-              <button type="submit" className="primary-btn" disabled={assistantBusy || !assistantInput.trim() || !llmConnected}>Send</button>
+              <input value={assistantInput} onChange={(event) => setAssistantInput(event.target.value)} placeholder={t(llmConnected ? 'Ask Keo about the cockpit…' : 'LLM not configured')} disabled={assistantBusy || !llmConnected} />
+              <button type="submit" className="primary-btn" disabled={assistantBusy || !assistantInput.trim() || !llmConnected}>{t("Send")}</button>
             </form>
           </div>
         ) : (
-          <button type="button" className="assistant-fab" onClick={() => setAssistantOpen(true)} title="Ask Keo" aria-label="Open Keo the cockpit assistant">
+          <button type="button" className="assistant-fab" onClick={() => setAssistantOpen(true)} title={t("Ask Keo")} aria-label={t("Open Keo the cockpit assistant")}>
             <Sparkles size={18} />
           </button>
         )}
