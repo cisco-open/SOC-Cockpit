@@ -5,7 +5,7 @@ For general contributor guidelines, see [CONTRIBUTING.md](/CONTRIBUTING.md).
 
 ## Prerequisites
 
-Node.js >= 22.5.0 — the server uses the built-in `node:sqlite` module.
+Node.js >= 22.18.0 — the server uses the built-in `node:sqlite` module and loads the shared report calculations (`src/reportCalc.ts`) directly, which needs Node's built-in TypeScript support.
 
 ## Setup
 

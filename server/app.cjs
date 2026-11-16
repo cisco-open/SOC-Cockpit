@@ -48,7 +48,12 @@ const store = createStore({
   dbPath,
   env: process.env,
 });
-const auth = createAuth({ dbPath, env: process.env, isProduction });
+const auth = createAuth({
+  dbPath,
+  env: process.env,
+  isProduction,
+  onAudit: (user, action, target, details) => store.writeAudit(user, action, target, details),
+});
 // Viewers may ask the assistant questions even though it is a POST.
 const VIEWER_ALLOWED_WRITES = new Set(['/assistant/chat']);
 
@@ -164,12 +169,12 @@ app.get('/api/snapshot', (_req, res) => {
 });
 
 app.post('/api/settings/clocks', auth.requireRole('Admin'), (req, res) => {
-  res.json(store.updateClockZones(req.body.zones));
+  res.json(store.updateClockZones(req.body.zones, req.user));
 });
 
 app.post('/api/settings/roster-planner', (req, res, next) => {
   try {
-    res.json(store.updateRosterPlannerSettings(req.body));
+    res.json(store.updateRosterPlannerSettings(req.body, req.user));
   } catch (error) {
     next(error);
   }
@@ -177,7 +182,7 @@ app.post('/api/settings/roster-planner', (req, res, next) => {
 
 app.post('/api/roster/planner', (req, res, next) => {
   try {
-    res.json(store.upsertRosterPlan(req.body.changes));
+    res.json(store.upsertRosterPlan(req.body.changes, req.user));
   } catch (error) {
     next(error);
   }
@@ -185,7 +190,7 @@ app.post('/api/roster/planner', (req, res, next) => {
 
 app.patch('/api/roster/staff/:name', (req, res, next) => {
   try {
-    res.json(store.renameRosterStaff(req.params.name, req.body.nextName));
+    res.json(store.renameRosterStaff(req.params.name, req.body.nextName, req.user));
   } catch (error) {
     next(error);
   }
@@ -193,7 +198,7 @@ app.patch('/api/roster/staff/:name', (req, res, next) => {
 
 app.patch('/api/roster/label/:code', (req, res, next) => {
   try {
-    res.json(store.updateRosterLabelDefinition(req.params.code, req.body));
+    res.json(store.updateRosterLabelDefinition(req.params.code, req.body, req.user));
   } catch (error) {
     next(error);
   }
@@ -201,7 +206,7 @@ app.patch('/api/roster/label/:code', (req, res, next) => {
 
 app.post('/api/advisor/generate', async (req, res, next) => {
   try {
-    res.json(await store.generateAdvisorBrief(req.body?.date));
+    res.json(await store.generateAdvisorBrief(req.body?.date, req.user));
   } catch (error) {
     next(error);
   }
@@ -225,7 +230,7 @@ app.post('/api/objective/:id/document', objectiveUpload.single('document'), (req
     const result = store.attachObjectiveDocument(req.params.id, {
       name: req.file.originalname,
       path: `/uploads/objective-docs/${req.file.filename}`,
-    });
+    }, req.user);
     logUploadActivity('objective', req);
     res.json(result);
   } catch (error) {
@@ -246,7 +251,7 @@ app.post('/api/process/:id/document', processUpload.single('document'), (req, re
     const result = store.attachProcessDocument(req.params.id, {
       name: req.file.originalname,
       path: `/uploads/process-docs/${req.file.filename}`,
-    });
+    }, req.user);
     logUploadActivity('process', req);
     res.json(result);
   } catch (error) {
@@ -345,6 +350,15 @@ app.get('/api/incidents/audit', auth.requireRole('Admin'), (req, res, next) => {
   }
 });
 
+// Full change history across all modules (Settings → Audit log).
+app.get('/api/audit', auth.requireRole('Admin'), (req, res, next) => {
+  try {
+    res.json({ entries: store.readAudit(req.query.limit) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/incident', auth.requireRole('Operator', 'Admin'), (req, res, next) => {
   try {
     res.json(store.createIncident(req.body, req.user));
@@ -372,7 +386,7 @@ app.delete('/api/incident/:id', auth.requireRole('Admin'), (req, res, next) => {
 
 app.post('/api/:kind', (req, res, next) => {
   try {
-    res.json(store.createRecord(req.params.kind, req.body));
+    res.json(store.createRecord(req.params.kind, req.body, req.user));
   } catch (error) {
     next(error);
   }
@@ -380,7 +394,7 @@ app.post('/api/:kind', (req, res, next) => {
 
 app.patch('/api/matrixTask/:id', (req, res, next) => {
   try {
-    res.json(store.updateMatrixTask(req.params.id, req.body));
+    res.json(store.updateMatrixTask(req.params.id, req.body, req.user));
   } catch (error) {
     next(error);
   }
@@ -388,7 +402,7 @@ app.patch('/api/matrixTask/:id', (req, res, next) => {
 
 app.post('/api/matrix/carry-over', (req, res, next) => {
   try {
-    res.json(store.carryOverMatrixTasks(req.body?.toDate, req.body?.fromDate));
+    res.json(store.carryOverMatrixTasks(req.body?.toDate, req.body?.fromDate, req.user));
   } catch (error) {
     next(error);
   }
@@ -411,7 +425,7 @@ app.post('/api/standup/import', workbookUpload.single('workbook'), async (req, r
       throw new Error('No workbook uploaded.');
     }
     const { rows, errors } = await parseStandupWorkbook(req.file.buffer);
-    const result = store.importStandupTasks(rows);
+    const result = store.importStandupTasks(rows, req.user, { name: path.basename(String(req.file.originalname || '')).slice(0, 120) });
     res.json({
       snapshot: result.snapshot,
       added: result.added,
@@ -430,7 +444,7 @@ app.post('/api/standup/import', workbookUpload.single('workbook'), async (req, r
 
 app.patch('/api/:kind/:id', (req, res, next) => {
   try {
-    res.json(store.updateRecord(req.params.kind, req.params.id, req.body));
+    res.json(store.updateRecord(req.params.kind, req.params.id, req.body, req.user));
   } catch (error) {
     next(error);
   }
@@ -438,7 +452,7 @@ app.patch('/api/:kind/:id', (req, res, next) => {
 
 app.delete('/api/:kind/:id', (req, res, next) => {
   try {
-    res.json(store.deleteRecord(req.params.kind, req.params.id));
+    res.json(store.deleteRecord(req.params.kind, req.params.id, req.user));
   } catch (error) {
     next(error);
   }

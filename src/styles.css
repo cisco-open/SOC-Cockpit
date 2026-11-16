@@ -3473,6 +3473,76 @@ time {
   background: var(--ac-head-bg);
 }
 
+/* Delete confirmation dialog */
+
+.ac-btn.danger-solid {
+  border-color: var(--risk);
+  background: var(--risk);
+  color: #fff;
+}
+
+.ac-btn.danger-solid:hover:not(:disabled) {
+  background: #b5222e;
+}
+
+.confirm-modal .confirm-icon {
+  color: var(--risk);
+}
+
+.confirm-message {
+  display: grid;
+  gap: 8px;
+  color: var(--ink);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.confirm-message p {
+  margin: 0;
+}
+
+/* Audit log (Settings) */
+
+.audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 16px 24px 0;
+}
+
+.admin-console .audit-filters select,
+.admin-console .audit-filters input {
+  width: auto;
+  min-width: 160px;
+  min-height: 36px;
+  padding: 6px 10px;
+}
+
+.admin-console .audit-filters input[type='search'] {
+  flex: 1 1 220px;
+}
+
+.audit-table td {
+  vertical-align: top;
+}
+
+.audit-table .audit-when {
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.audit-table .audit-what {
+  max-width: 520px;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.audit-table tr.is-delete .audit-action {
+  color: var(--risk);
+}
+
 /* Directory tab */
 
 .ac-dir {

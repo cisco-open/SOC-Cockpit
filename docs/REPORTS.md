@@ -82,12 +82,30 @@ Issues now record when they were opened and closed, so the monthly report can co
 them per period. Issues created before this change show in the "open now" list but are
 not counted as opened/closed in a period.
 
+## Keo and the Executive Update
+
+Keo (the in-app assistant and the Command-page insights) can answer questions about
+incidents and SLA performance, for example *"What was our P1 resolve compliance last
+month?"* or *"Which business unit had the most breaches this month?"*, and combine them with
+the other modules (roster coverage, issues, KPIs, notes).
+
+- The server uses the same calculations as this module (`src/reportCalc.ts`), so Keo
+  quotes the figures shown on screen and in the PDF rather than working them out itself.
+- Keo receives: the SLA policy (standard and business unit targets, compliance
+  target), SLA results for **month to date**, **last month** and the **last 90 days**
+  (overall, by priority, by business unit, by category, and the breaches list), all open
+  incidents, and incidents detected in the last 30 days. For other periods, open the report.
+- The Executive Update includes SLA compliance and breaches for its 7-day window, month
+  to date, and open P1/P2 incidents.
+- When an LLM is configured, this data (including business unit names and incident titles)
+  is sent to the LLM provider together with the rest of the cockpit context.
+
 ## Security controls
 
 | Control | What it does |
 |---|---|
 | Roles | Viewers can read reports only. Operators and Admins can add, edit and import incidents. **Deleting an incident is Admin only**, because it removes the ticket from SLA results. SLA & KPI policies are Admin only. |
-| Change history | Every incident create / edit / delete, every import (file name, SHA-256 of the file, counts) and every SLA policy change is recorded with the user and time. Edits keep the before and after values of the SLA-relevant fields (priority, business unit, status, timestamps). Admins see it in Reports → Incident register → Change history (`GET /api/incidents/audit`). |
+| Change history | Every incident create / edit / delete, every import (file name, SHA-256 of the file, counts) and every SLA policy change is recorded with the user and time. Edits keep the before and after values of the SLA-relevant fields (priority, business unit, status, timestamps). Admins see it in Reports → Incident register → Change history (`GET /api/incidents/audit`). Changes in all other modules are in the same log, under Settings → Audit log (`GET /api/audit`). |
 | Upload checks | `.xlsx` must be a real zip workbook; the archive is inspected before unpacking and files that would expand to an unsafe size (decompression bombs) are rejected. `.csv` must be text. Upload size limit 10 MB; there is no limit on the number of rows. |
 | Import rate limit | At most 20 imports per user in 10 minutes (HTTP 429 after that). |
 | Input validation | Unknown statuses and ambiguous dates are rejected, timestamps must be in order, ticket numbers / business unit names longer than 120 characters are rejected and long text is shortened with a warning. Business unit names such as `__proto__` are ignored in SLA settings. Error messages quote input only in a short, sanitised form. |

@@ -65,7 +65,8 @@ function ensureIncidentSchema(db) {
       created_at TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS idx_incidents_detected ON incidents (detected_at);
-    -- Append-only change history for incident data and SLA policies (who changed what, when).
+    -- Append-only change history (who changed what, when). Started with incident data and SLA
+    -- policies; now holds changes from every module. The table name is kept for existing databases.
     CREATE TABLE IF NOT EXISTS incident_audit (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       at TEXT NOT NULL,
@@ -398,9 +399,11 @@ function writeAudit(db, user, action, target, details) {
     .run(new Date().toISOString(), clean(user?.username).slice(0, 120), clean(user?.role).slice(0, 20), action, clean(target).slice(0, 200), serializeAuditDetails(details));
 }
 
-function readAudit(db, limit = 500) {
-  return db.prepare('SELECT id, at, username, role, action, target, details FROM incident_audit ORDER BY id DESC LIMIT ?')
-    .all(Math.min(2000, Math.max(1, Number.parseInt(String(limit), 10) || 500)))
+function readAudit(db, limit = 500, { actionPrefixes = [] } = {}) {
+  const prefixes = actionPrefixes.filter(Boolean);
+  const where = prefixes.length ? `WHERE ${prefixes.map(() => 'action LIKE ?').join(' OR ')}` : '';
+  return db.prepare(`SELECT id, at, username, role, action, target, details FROM incident_audit ${where} ORDER BY id DESC LIMIT ?`)
+    .all(...prefixes.map((prefix) => `${prefix.replace(/[%_]/g, '')}%`), Math.min(2000, Math.max(1, Number.parseInt(String(limit), 10) || 500)))
     .map((entry) => {
       let details = {};
       try {
