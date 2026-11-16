@@ -82,6 +82,24 @@ Issues now record when they were opened and closed, so the monthly report can co
 them per period. Issues created before this change show in the "open now" list but are
 not counted as opened/closed in a period.
 
+## Keo and the Executive Update
+
+Keo (the in-app assistant and the Command-page insights) can answer questions about
+incidents and SLA performance, for example *"What was our P1 resolve compliance last
+month?"* or *"Which customer had the most breaches this month?"*, and combine them with
+the other modules (roster coverage, issues, KPIs, notes).
+
+- The server uses the same calculations as this module (`src/reportCalc.ts`), so Keo
+  quotes the figures shown on screen and in the PDF rather than working them out itself.
+- Keo receives: the SLA policy (standard and customer-specific targets, compliance
+  target), SLA results for **month to date**, **last month** and the **last 90 days**
+  (overall, by priority, by customer, by category, and the breaches list), all open
+  incidents, and incidents detected in the last 30 days. For other periods, open the report.
+- The Executive Update includes SLA compliance and breaches for its 7-day window, month
+  to date, and open P1/P2 incidents.
+- When an LLM is configured, this data (including customer names and incident titles)
+  is sent to the LLM provider together with the rest of the cockpit context.
+
 ## Security controls
 
 | Control | What it does |

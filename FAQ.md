@@ -303,7 +303,7 @@ and `uploads/` directories to the service account only.
 ### What database does SOC Cockpit use?
 
 It uses an **embedded SQLite database** accessed through Node.js's built-in
-`node:sqlite` module (which is why the project requires Node.js ≥ 22.5.0). The
+`node:sqlite` module (which is why the project requires Node.js ≥ 22.18.0). The
 database is a single file stored under the application's `data/` directory. This
 keeps the application simple and self-contained, which suits a single-team
 operational tool.
@@ -442,7 +442,7 @@ reference manifests is a reasonable roadmap item, and contributions are welcome.
 
 ### What are the runtime and infrastructure requirements?
 
-- **Node.js ≥ 22.5.0** (required for the built-in `node:sqlite` module).
+- **Node.js ≥ 22.18.0** (required for the built-in `node:sqlite` module and for loading the shared report calculations in `src/reportCalc.ts`).
 - A **persistent, encrypted volume** for the `data/` (SQLite) and `uploads/`
   directories, since these hold all state.
 - **Environment configuration** via environment variables / secrets (`PORT`,
@@ -475,6 +475,8 @@ RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 COPY server ./server
 COPY scripts ./scripts
+# The server reuses the Reports calculations so Keo quotes the same SLA figures
+COPY src/reportCalc.ts ./src/reportCalc.ts
 # Run as an unprivileged user; data/ and uploads/ should be mounted volumes
 USER node
 EXPOSE 3001

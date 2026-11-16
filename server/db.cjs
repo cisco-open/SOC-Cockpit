@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const incidents = require('./incidents.cjs');
+const { buildReportsContext, buildExecutiveSlaContext } = require('./reportsContext.cjs');
 
 const DEFAULT_CLOCK_ZONES = ['UTC', 'America/New_York'];
 
@@ -1164,11 +1165,14 @@ function buildFallbackBrief(snapshot, targetDate = isoDate(0)) {
   const completedThisWeek = snapshot.matrixTasks.filter((item) => item.status === 'Completed' && inWindow(item.taskDate));
   const upcomingGaps = snapshot.rosterAssignments.filter((item) => item.rosterDate >= today && item.status === 'Gap');
   const agingFollowUps = snapshot.followUps.filter((item) => item.health !== 'healthy');
+  const sla = safeReportsContext(() => buildExecutiveSlaContext(snapshot, windowStart, today));
+  const week = sla.pastWeek;
   const todaysNotes = snapshot.notes.filter((item) => item.noteDate === today);
 
   const wins = [];
   if (completedThisWeek.length) wins.push(`- ${completedThisWeek.length} planned task(s) completed over the past week.`);
   healthyKpis.slice(0, 3).forEach((item) => wins.push(`- ${item.name} on track (${item.actual} vs target ${item.target}).`));
+  if (week?.incidents && week.meetsComplianceTarget) wins.push(`- SLA compliance ${week.overallCompliancePct}% over the past 7 days across ${week.incidents} incident(s), meeting the ${sla.complianceTargetPct}% target.`);
   strongObjectives.slice(0, 2).forEach((item) => wins.push(`- Objective advancing: ${item.title} (${item.progress}%).`));
   if (!wins.length) wins.push('- No material wins to report this period.');
 
@@ -1179,6 +1183,8 @@ function buildFallbackBrief(snapshot, targetDate = isoDate(0)) {
   riskProjects.slice(0, 2).forEach((item) => concerns.push(`- Project needs attention: ${item.name} (${item.phase}).`));
   if (upcomingGaps.length) concerns.push(`- ${upcomingGaps.length} upcoming roster coverage gap(s).`);
   if (agingFollowUps.length) concerns.push(`- ${agingFollowUps.length} follow-up(s) ageing without closure.`);
+  if (week?.incidents && week.meetsComplianceTarget === false) concerns.push(`- SLA compliance ${week.overallCompliancePct}% over the past 7 days, below the ${sla.complianceTargetPct}% target, with ${week.breachCount} breach(es).`);
+  if (sla.openHighPriority?.length) concerns.push(`- ${sla.openHighPriority.length} open P1/P2 incident(s): ${sla.openHighPriority.slice(0, 3).map((item) => item.ref || item.title).join(', ')}.`);
   if (!concerns.length) concerns.push('- No material concerns to report this period.');
 
   const decisions = [];
@@ -1253,6 +1259,7 @@ async function generateAdvisorWithLlm(snapshot, env, targetDate = isoDate(0)) {
     issues: snapshot.issues.map((item) => ({ title: item.title, summary: item.summary, owner: item.owner, due: item.due, progress: item.progress, health: item.health })),
     projects: snapshot.projects.map((item) => ({ name: item.name, owner: item.owner, phase: item.phase, due: item.due, progress: item.progress, health: item.health })),
     followUps: snapshot.followUps.map((item) => ({ ref: item.ref, title: item.title, owner: item.owner, age: item.age, health: item.health })),
+    slaAndIncidents: safeReportsContext(() => buildExecutiveSlaContext(snapshot, windowStart, today)),
   };
   const response = await fetchWithContext(llmUrl, {
     method: 'POST',
@@ -1293,8 +1300,9 @@ async function generateAdvisorWithLlm(snapshot, env, targetDate = isoDate(0)) {
             'Build the executive SOC update from the snapshot below, using the exact six sections defined in your instructions.',
             'Sourcing guidance:',
             '- Notes of the Day: represent every note in todaysManagerNotes as a concise bullet before moving to wins and risks; do not omit any today note.',
-            '- Wins & Progress: draw from KPIs on or above target or trending up, objectives and projects with strong progress or healthy status, issues resolved or de-risked, and completedThisWeek.',
-            '- Concerns & Risks: draw from KPIs below target or trending down, at-risk or overdue objectives, issues, and projects, ageing follow-ups, upcomingCoverageGaps, and problems raised in the manager notes.',
+            '- Wins & Progress: draw from KPIs on or above target or trending up, objectives and projects with strong progress or healthy status, issues resolved or de-risked, completedThisWeek, and slaAndIncidents compliance at or above its target.',
+            '- Concerns & Risks: draw from KPIs below target or trending down, at-risk or overdue objectives, issues, and projects, ageing follow-ups, upcomingCoverageGaps, slaAndIncidents (SLA breaches, compliance below target, open P1/P2 incidents), and problems raised in the manager notes.',
+            '- Quote SLA compliance percentages and breach counts exactly as given in slaAndIncidents; do not recalculate them. If slaAndIncidents shows no incidents, do not mention SLA performance.',
             '- Decisions & Support Needed: draw from strategic, contractual, vendor, governance, staffing, or financial points in the manager notes that need an executive decision or escalation.',
             '- todaysManagerNotes are the primary strategic signal; recentManagerNotes give the week\'s context.',
             'Rules:',
@@ -1418,7 +1426,18 @@ function buildAssistantContext(snapshot) {
       .filter((n) => n.noteDate >= thirtyDaysAgo)
       .map((n) => ({ date: n.noteDate, createdAt: n.createdAt, pinned: n.pinned, text: n.text })),
     contacts: snapshot.contacts.map((c) => ({ name: c.name, role: c.role, channel: c.channel, scope: c.scope, isLead: c.isLead, email: c.email, phone: c.phone })),
+    reports: safeReportsContext(() => buildReportsContext(snapshot)),
   };
+}
+
+// Keo keeps working on the other modules if the Reports data cannot be summarised.
+function safeReportsContext(build) {
+  try {
+    return build();
+  } catch (error) {
+    console.error('[assistant] Could not build the Reports context:', error);
+    return { unavailable: true, note: 'Reports data could not be loaded for this answer.' };
+  }
 }
 
 function tryAnswerStandupTaskQuestion(snapshot, history) {
@@ -1522,7 +1541,9 @@ async function answerQuestionWithLlm(snapshot, history, env) {
 
   const systemPrompt = [
     "You are the SOC Cockpit assistant, embedded in a SOC manager's command dashboard.",
-    "Answer the question using ONLY the JSON data context below, which is the current live state of the cockpit (KPIs, the rotation planner/roster for a multi-month window, today's roster, issues, objectives, projects, follow-ups, processes, standup/Eisenhower tasks and daily notes from the last 30 days, and contacts).",
+    "Answer the question using ONLY the JSON data context below, which is the current live state of the cockpit (KPIs, the rotation planner/roster for a multi-month window, today's roster, issues, objectives, projects, follow-ups, processes, standup/Eisenhower tasks and daily notes from the last 30 days, contacts, and the Reports module: incident register and SLA results).",
+    'Incidents, SLA, MTTD/MTTA/MTTR, breaches and customer SLA questions: use `reports`. READ the precomputed figures in `reports.sla` (monthToDate, lastMonth, last90Days; each with overall compliance, byPriority, byCustomer, byCategory and breaches) instead of counting incidents or calculating averages yourself. SLA targets are in `reports.slaPolicy`; open tickets are in `reports.openIncidents`; individual incidents from the last 30 days are in `reports.recentIncidents`. All durations are minutes: present them as hours and minutes (e.g. 95 -> 1h 35m). For periods not covered by these summaries, say that the full figures are in the Reports module rather than estimating.',
+    'Combine Reports data with the other modules when it helps the answer (for example relate SLA breaches to roster coverage gaps, open issues, KPIs or manager notes for the same dates), but state clearly which figures come from which module.',
     'The roster is in `roster` (per analyst, `shiftsByDate` maps each date to a shift code) and covers `rosterWindow` (start to end). Shift codes are defined in `rosterLegend` (e.g. DO = day off, PL = paid leave, GEN/FS/SS/NS = shift types). Use these to analyse coverage, leave, gaps, and workload for any date or month within the window.',
     'For counting questions ("how many days did X work", leave taken, coverage), READ the precomputed numbers instead of tallying or classifying dates yourself: each analyst has a `summary` array (per month: `worked`, `workedWeekday`, `workedWeekend`, `offOrLeave`, and `byCode` counts), and `calendar` gives `weekdays`/`weekends`/`totalDays` for each month. Never infer which dates fall on weekends or how many weekdays a month has — take those figures from `calendar`.',
     'Definition of "worked": a day is worked if its shift code is a working code (any legend code whose `status` is NOT "Leave" or "Gap"). WFH, GEN, FS, SS and NS count as worked; DO (day off), PL (paid leave), SCK (sick) and EL (emergency leave) do NOT. This is already applied in each analyst summary\'s `worked` count, so do not re-classify codes yourself.',

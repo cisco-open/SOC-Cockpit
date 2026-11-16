@@ -66,9 +66,11 @@ process survives the days when the app is unavailable.
 The value of an assistant in a SOC depends entirely on
 whether you can trust what it tells you, so Cockpit's AI is deliberately
 constrained: Keo answers strictly from the live cockpit record — roster
-coverage, open issues, objectives, KPIs, stand-up tasks and notes — rather than
+coverage, open issues, objectives, KPIs, stand-up tasks, notes, and the
+incident and SLA figures from Reports — rather than
 from general knowledge. Ask which shifts are short next week, how much effort
-went into a given objective, or what is still open from last month, and the
+went into a given objective, which customer had the most SLA breaches last
+month, or what is still open from last month, and the
 answer comes from the data in front of you. Routine counting questions are
 resolved directly from the database rather than by the model at all, so those
 figures are arithmetic, not inference. Alongside this, the advisor brief turns a
@@ -97,7 +99,7 @@ Features:
 
 ## Prerequisites
 
-- Node.js >= 22.5.0 (the server uses the built-in `node:sqlite` module).
+- Node.js >= 22.18.0 (the server uses the built-in `node:sqlite` module and loads the shared report calculations in `src/reportCalc.ts` directly).
 - npm.
 
 ## Quick start
