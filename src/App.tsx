@@ -2373,7 +2373,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
     processes: renderProcesses(),
     contacts: renderContacts(),
     notes: renderNotes(),
-    reports: <ReportsView app={app} user={user} busy={Boolean(busy)} mutate={mutate} />,
+    reports: <ReportsView app={app} user={user} busy={Boolean(busy)} mutate={mutate} panelsCollapsedByDefault={panelsCollapsedByDefault} />,
     advisor: renderAdvisor(),
     settings: renderSettings(),
   };

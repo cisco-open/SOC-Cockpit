@@ -161,7 +161,7 @@ test('duration cells accept minutes, h/m text and h:mm', () => {
 test('CSV with MTTD / MTTA / MTTR durations derives the timestamps', () => {
   const { store } = tempStore();
   const csv = [
-    'Ticket No,Customer,Priority,Date,Time,MTTD,MTTA,MTTR',
+    'Ticket No,Business Unit,Priority,Date,Time,MTTD,MTTA,MTTR',
     'T-1,Acme,High,2026-11-04,13:05,10,25,5h',
     'T-2,Acme,P1,2026-11-04 09:00,,,12,',
     'T-3,Acme,P3,2026-11-04 10:00,,,abc,',
@@ -176,6 +176,7 @@ test('CSV with MTTD / MTTA / MTTR durations derives the timestamps', () => {
     ['2026-11-04T13:05', '2026-11-04T12:55', '2026-11-04T13:30', '2026-11-04T18:05', 'Closed'],
   );
   assert.equal(byRef['T-1'].title, 'Ticket T-1', 'title defaults to the ticket number');
+  assert.equal(byRef['T-1'].customer, 'Acme', 'a "Business Unit" column fills the business unit');
   assert.equal(byRef['T-2'].status, 'Acknowledged', 'no MTTR yet: still open');
   assert.equal(byRef['T-2'].resolvedAt, '');
 });

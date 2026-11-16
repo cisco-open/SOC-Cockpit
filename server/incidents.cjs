@@ -287,7 +287,7 @@ function toLocalStamp(date) {
 // descriptive text is shortened with a warning.
 const FIELD_LIMITS = {
   ref: { max: 120, reject: true, label: 'Ticket number' },
-  customer: { max: 120, reject: true, label: 'Customer' },
+  customer: { max: 120, reject: true, label: 'Business unit' },
   title: { max: 500, label: 'Title' },
   category: { max: 120, label: 'Category' },
   source: { max: 120, label: 'Source' },
@@ -452,7 +452,7 @@ function settingsChanges(before, after) {
 // Header aliases so exports from Splunk, ServiceNow, Jira, TheHive and hand-made Excel sheets map without editing.
 const HEADER_ALIASES = {
   ref: ['ref', 'reference', 'ticket', 'ticket number', 'ticket no', 'ticket no.', 'ticket #', 'ticket id', 'ticket_id', 'incident', 'incident number', 'incident id', 'incident_id', 'number', 'case', 'case id', 'case_id', 'case number', 'id', 'key'],
-  customer: ['customer', 'client', 'tenant', 'company', 'account', 'organization', 'organisation'],
+  customer: ['business unit', 'business_unit', 'bu', 'department', 'division', 'customer', 'client', 'tenant', 'company', 'account', 'organization', 'organisation'],
   title: ['title', 'summary', 'short description', 'short_description', 'name', 'subject', 'description', 'rule name', 'rule_name', 'alert', 'alert name'],
   priority: ['priority', 'severity', 'urgency', 'sev', 'impact'],
   category: ['category', 'type', 'incident type', 'classification', 'use case', 'use_case'],
@@ -724,7 +724,7 @@ async function importIncidentsXlsx(db, buffer) {
 
 const TEMPLATE_COLUMNS = [
   { header: 'Ticket number *', key: 'ref', width: 16 },
-  { header: 'Customer', key: 'customer', width: 20 },
+  { header: 'Business Unit', key: 'customer', width: 20 },
   { header: 'Title', key: 'title', width: 36 },
   { header: 'Priority *', key: 'priority', width: 10 },
   { header: 'Detected *', key: 'detected', width: 18 },
@@ -764,8 +764,8 @@ async function buildIncidentTemplateXlsx() {
   const lines = [
     ['SOC Cockpit – incident import', ''],
     ['', ''],
-    ['Ticket number *', 'Your ticket / case reference. Re-importing the same ticket number (and customer) updates it instead of creating a duplicate.'],
-    ['Customer', 'Customer or tenant name. Must match the name used for any customer-specific SLA in Settings → SLA & KPI policies.'],
+    ['Ticket number *', 'Your ticket / case reference. Re-importing the same ticket number (and business unit) updates it instead of creating a duplicate.'],
+    ['Business Unit', 'Business unit (or customer / tenant) name. Must match the name used for any business unit SLA in Settings → SLA & KPI policies. A Customer column is also accepted.'],
     ['Title', 'Optional short description. If empty, "Ticket <number>" is used.'],
     ['Priority *', 'P1, P2, P3 or P4 (Critical / High / Medium / Low and 1–4 are also accepted).'],
     ['Detected *', 'Date and time the incident was detected, e.g. 2026-08-04 14:30 or 04/08/2026 14:30.'],
@@ -786,7 +786,7 @@ async function buildIncidentTemplateXlsx() {
 }
 
 const CSV_TEMPLATE = [
-  'Ticket number,Customer,Title,Priority,Detected,MTTD,MTTA,MTTR,Category,Analyst,Status,Notes',
+  'Ticket number,Business Unit,Title,Priority,Detected,MTTD,MTTA,MTTR,Category,Analyst,Status,Notes',
   'INC-1001,Sample Customer 1,Brute force on VPN gateway,P2,2026-08-04 08:10,8,15,3h 30m,Credential access,Analyst 1,Closed,Blocked source IPs',
   'INC-1002,Sample Customer 2,Malware detected on endpoint,P1,2026-08-12 21:15,5,7,,Malware,Analyst 2,Acknowledged,Host isolated',
 ].join('\r\n');

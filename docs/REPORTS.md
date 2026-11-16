@@ -7,7 +7,7 @@ be saved as a PDF with **Print / Save as PDF** (choose *Save as PDF* as the prin
 | Report | Period | What it covers |
 |---|---|---|
 | Monthly service report | month or custom range | Executive summary, incident & SLA performance, KPIs, issues opened/closed, objectives, projects, workforce, stand-up delivery, management commentary (latest Executive Update in the period), sign-off |
-| Customer SLA report | month or range, per customer | MTTD, MTTA, MTTR (average and median) by priority, SLA compliance, agreed targets, daily volume, categories, every breach, full incident log, customer sign-off |
+| SLA Report | month or range, per business unit | MTTD, MTTA, MTTR (average and median) by priority, SLA compliance, agreed targets, daily volume, categories, every breach, full incident log, business unit sign-off |
 | Workforce & attendance | month or range | Shifts worked per analyst (weekday/weekend), days off, leave, sick/absence, roster calendar, daily coverage, staffing-gap dates |
 | Stand-up & tasks | month or range | Completion rate, effort, by lead and Eisenhower quadrant, daily trend, carried-over tasks, open tasks |
 | Shift handover | one day | Who is on duty today and tomorrow, absences, open incidents with SLA state, new incidents, open issues, follow-ups, outstanding tasks, notes, remarks box, outgoing/incoming sign-off |
@@ -19,13 +19,13 @@ The quickest way to fill it is to upload your SLA sheet:
 
 1. Click **Download Excel template** (or use your own sheet: the column names below are recognised).
 2. Fill one row per ticket: **ticket number, priority, detected date/time** and the ticket's
-   **MTTD, MTTA and MTTR**. Customer, title, category, analyst, status and notes are optional.
+   **MTTD, MTTA and MTTR**. Business unit, title, category, analyst, status and notes are optional.
 3. Click **Choose Excel or CSV file** and upload it. Every report updates immediately.
 
 Durations can be minutes (`45`), hours and minutes (`1h 30m`, `2d 4h`) or `h:mm` (`1:30`, or an
 Excel time-formatted cell). Leave MTTR empty for tickets that are still open — they are shown as
 *in progress* and counted as breached once they pass their target. Re-importing a ticket with the
-same number and customer updates it instead of creating a duplicate, so you can upload the same
+same number and business unit updates it instead of creating a duplicate, so you can upload the same
 monthly sheet again after correcting it. Rows with problems are skipped and listed with their row
 number.
 
@@ -35,7 +35,7 @@ work too (CSV or Excel). Recognised column names (case-insensitive):
 | Field | Accepted headers |
 |---|---|
 | Ticket number | ticket number, ticket no, ticket, ref, incident id, number, case id, id, key |
-| Customer | customer, client, tenant, company, account |
+| Business Unit | business unit, bu, department, division, customer, client, tenant, company, account |
 | Title (optional) | title, summary, short description, name, subject, description, alert |
 | Priority | priority, severity, urgency — P1–P4, 1–4, Sev1–4, Critical/High/Medium/Low |
 | Detected (required) | detected, date, incident date, created, opened, reported, \_time (+ optional separate time column) |
@@ -56,10 +56,10 @@ A ready-made file with ~300 fictional tickets (August–October 2026, Sample Cus
 
 - **Compliance thresholds** – the contracted compliance target (green at or above) and the amber
   threshold below it. Used for every SLA percentage and the "met / not met" line.
-- **Standard SLA targets** – detect / acknowledge / resolve per priority, for every customer without
+- **Standard SLA targets** – detect / acknowledge / resolve per priority, for every business unit without
   its own contract.
-- **Customer-specific SLAs** – per-customer targets that override the standard ones. The customer name
-  must match the incident register. The customer's SLA report then shows *customer-specific SLA*.
+- **Business unit SLAs** – per-business-unit targets that override the standard ones. The business unit name
+  must match the incident register. That business unit's SLA report then shows *business unit SLA*.
 - **Report header & calendar** – organisation name on every report and the weekend days.
 - **KPI health rules** – per KPI, *higher is better* or *lower is better* plus an amber band (% of the
   target). The KPI's health is then calculated from actual vs target whenever it is saved, instead of
@@ -74,7 +74,7 @@ A ready-made file with ~300 fictional tickets (August–October 2026, Sample Cus
 - **SLA compliance** – share of measured acknowledge and resolve results within the
   target for the incident's priority. An *open* incident that is already past its
   target counts as a breach; one still within target shows as *In progress*.
-- **SLA targets** are the customer's own SLA when one is set, otherwise the standard targets
+- **SLA targets** are the business unit's own SLA when one is set, otherwise the standard targets
   (see *SLA & KPI policies* above). The default weekend is Sat + Sun; choose Fri + Sat for Saudi
   Arabia and most GCC countries.
 
@@ -87,10 +87,10 @@ not counted as opened/closed in a period.
 | Control | What it does |
 |---|---|
 | Roles | Viewers can read reports only. Operators and Admins can add, edit and import incidents. **Deleting an incident is Admin only**, because it removes the ticket from SLA results. SLA & KPI policies are Admin only. |
-| Change history | Every incident create / edit / delete, every import (file name, SHA-256 of the file, counts) and every SLA policy change is recorded with the user and time. Edits keep the before and after values of the SLA-relevant fields (priority, customer, status, timestamps). Admins see it in Reports → Incident register → Change history (`GET /api/incidents/audit`). |
+| Change history | Every incident create / edit / delete, every import (file name, SHA-256 of the file, counts) and every SLA policy change is recorded with the user and time. Edits keep the before and after values of the SLA-relevant fields (priority, business unit, status, timestamps). Admins see it in Reports → Incident register → Change history (`GET /api/incidents/audit`). |
 | Upload checks | `.xlsx` must be a real zip workbook; the archive is inspected before unpacking and files that would expand to an unsafe size (decompression bombs) are rejected. `.csv` must be text. Upload size limit 10 MB; there is no limit on the number of rows. |
 | Import rate limit | At most 20 imports per user in 10 minutes (HTTP 429 after that). |
-| Input validation | Unknown statuses and ambiguous dates are rejected, timestamps must be in order, ticket numbers / customer names longer than 120 characters are rejected and long text is shortened with a warning. Customer names such as `__proto__` are ignored in SLA settings. Error messages quote input only in a short, sanitised form. |
+| Input validation | Unknown statuses and ambiguous dates are rejected, timestamps must be in order, ticket numbers / business unit names longer than 120 characters are rejected and long text is shortened with a warning. Business unit names such as `__proto__` are ignored in SLA settings. Error messages quote input only in a short, sanitised form. |
 | Data handling | All queries are parameterised; imported text is displayed as text (never as HTML). |
 
 ## Demo data for testing

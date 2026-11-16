@@ -6,33 +6,10 @@
   gap: 12px;
 }
 
-.report-tabs {
-  display: flex;
+/* Tabs use the shared Settings tab style (.ac-tabs / .ac-tab); only spacing differs here. */
+.reports-module .report-tabs {
   flex-wrap: wrap;
-  gap: 4px;
-  border-bottom: 1px solid var(--line);
-}
-
-.report-tab {
-  border: 1px solid transparent;
-  border-bottom: 0;
-  background: transparent;
-  color: var(--muted);
-  padding: 8px 12px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  border-radius: 6px 6px 0 0;
-  cursor: pointer;
-}
-
-.report-tab:hover { color: var(--ink); }
-
-.report-tab.active {
-  background: var(--panel);
-  border-color: var(--line);
-  color: var(--head);
-  margin-bottom: -1px;
+  margin-bottom: 0;
 }
 
 .report-toolbar {
@@ -318,12 +295,14 @@
 
 /* ---------- incident register & settings (app styling) ---------- */
 
-.report-register { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 12px; align-items: start; }
+.report-register { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 8px; align-items: start; }
+/* Collapsed: the add / import side column folds into a rail, as in the other modules. */
+.report-register.collapsed { grid-template-columns: minmax(0, 1fr) 34px; }
 .report-register-side { display: grid; gap: 12px; }
 .report-filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px 6px; }
 .report-filters select { width: auto; flex: 0 0 190px; }
 .report-filters input[type='search'] { width: auto; flex: 1; min-width: 180px; }
-.report-table-scroll { max-height: 640px; overflow: auto; }
+.report-table-scroll { overflow-x: auto; }
 .report-empty-state { padding: 18px 4px; }
 .report-inline { display: flex; gap: 6px; align-items: center; }
 .report-inline input { flex: 1; min-width: 0; }
@@ -365,13 +344,18 @@
 .sla-changed { background: rgba(10, 96, 255, 0.07); }
 .sla-bands { display: flex; flex-wrap: wrap; gap: 6px; }
 .sla-band { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
-.sla-band.healthy { background: #e2f3e9; color: #17703d; }
-.sla-band.watch { background: #fff3d6; color: #8a5d00; }
-.sla-band.risk { background: #fbe3e5; color: #b4202c; }
+/* Same tinted style as the status chips elsewhere, so the badges also read well in night mode. */
+.sla-band.healthy { background: rgba(30, 138, 76, 0.12); color: var(--healthy); }
+.sla-band.watch { background: rgba(255, 176, 0, 0.16); color: #9a6400; }
+.sla-band.risk { background: rgba(213, 50, 63, 0.12); color: var(--risk); }
+:root[data-theme='night'] .sla-band.watch,
+:root[data-theme='night'] .sla-warning { color: var(--watch); }
 .sla-customer { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 6px; }
 .sla-customer-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .sla-warning { font-size: 11px; color: #b57900; }
-.sla-savebar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; z-index: 2; }
+/* Floating save bar: full width of the settings column, with a shadow so it reads as above the content it covers. */
+.sla-savebar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; z-index: 2; box-shadow: 0 -6px 16px rgba(7, 24, 45, 0.18); }
+:root[data-theme='night'] .sla-savebar { box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.55); }
 .kpi-rules select { min-width: 150px; }
 .kpi-tolerance { width: 70px; }
 
