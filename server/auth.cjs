@@ -32,6 +32,20 @@ const LOCKOUT_MS = 15 * 60 * 1000;
 const CSRF_HEADER_VALUE = 'soc-cockpit';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const INVALID_LOGIN_MESSAGE = 'Invalid username or password.';
+// Audit-log actor for changes made automatically during company (directory) sign-in.
+const DIRECTORY_ACTOR = { username: 'system (directory sign-in)', role: '' };
+
+/** Directory setting value as audit text; group-to-role rules read as "group → role". */
+function directoryValue(value) {
+  if (value === null || value === undefined) return '';
+  if (Array.isArray(value)) {
+    return value.map((item) => {
+      if (item && typeof item === 'object' && 'group' in item) return `${item.group} → ${item.role}`;
+      return typeof item === 'object' ? JSON.stringify(item) : String(item);
+    }).join('; ');
+  }
+  return typeof value === 'object' ? JSON.stringify(value) : String(value);
+}
 
 class AuthError extends Error {
   constructor(statusCode, message) {
@@ -40,7 +54,7 @@ class AuthError extends Error {
   }
 }
 
-function createAuth({ dbPath, env, isProduction }) {
+function createAuth({ dbPath, env, isProduction, onAudit = () => {} }) {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new DatabaseSync(dbPath);
   db.exec('PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON;');
@@ -187,6 +201,7 @@ function createAuth({ dbPath, env, isProduction }) {
     }
     db.prepare('UPDATE users SET role_id = ? WHERE id = ?').run(roleId(mappedRole), user.id);
     console.log(`[auth] Directory group rule changed role of "${user.username}" from ${user.role} to ${mappedRole}.`);
+    onAudit(DIRECTORY_ACTOR, 'user.update', user.username, { role: [user.role, mappedRole], reason: 'directory group rule at sign-in' });
   }
 
   // ---- Middleware ----
@@ -256,6 +271,7 @@ function createAuth({ dbPath, env, isProduction }) {
     setupCode = null;
     failures.delete(throttleKey);
     console.log(`[auth] First admin account "${input.username}" created. Public setup is now disabled.`);
+    onAudit({ username: input.username, role: 'Admin' }, 'user.create', input.username, { account: ['', 'local'], role: ['', 'Admin'], reason: 'first-time setup' });
     createSession(res, userId);
     res.json({ user: publicUser(findUserByUsername(input.username)) });
   });
@@ -292,6 +308,7 @@ function createAuth({ dbPath, env, isProduction }) {
           insertUser({ username, email: profile.email, displayName: profile.displayName, accountType: 'ldap', status: profile.newUserStatus, role: profile.newUserRole });
           newlyRegistered = profile.newUserStatus !== 'active';
           console.log(`[auth] Company user "${username}" registered with role ${profile.newUserRole}${newlyRegistered ? ', awaiting admin approval' : ''}.`);
+          onAudit(DIRECTORY_ACTOR, 'user.create', username, { account: ['', 'ldap'], role: ['', profile.newUserRole], status: ['', profile.newUserStatus], reason: 'first company sign-in' });
         }
         user = findUserByUsername(username);
       }
@@ -350,6 +367,7 @@ function createAuth({ dbPath, env, isProduction }) {
       throw error;
     }
     console.log(`[auth] Admin "${req.user.username}" created local user "${input.username}" with role ${role}.`);
+    onAudit(req.user, 'user.create', input.username, { account: ['', 'local'], role: ['', role], ...(input.email ? { email: ['', input.email] } : {}) });
     res.json({ users: listUsers(), roles: ROLE_NAMES });
   });
 
@@ -377,6 +395,10 @@ function createAuth({ dbPath, env, isProduction }) {
       db.prepare('DELETE FROM sessions WHERE user_id = ?').run(target.id);
     }
     console.log(`[auth] Admin "${req.user.username}" set user "${target.username}" to role=${nextRole} status=${nextStatus}.`);
+    const changes = {};
+    if (nextRole !== target.role) changes.role = [target.role, nextRole];
+    if (nextStatus !== target.status) changes.status = [target.status, nextStatus];
+    if (Object.keys(changes).length) onAudit(req.user, 'user.update', target.username, changes);
     res.json({ users: listUsers(), roles: ROLE_NAMES });
   });
 
@@ -385,7 +407,23 @@ function createAuth({ dbPath, env, isProduction }) {
   });
 
   adminRouter.put('/directory', (req, res) => {
-    res.json(directory.save(req.body, req.user.username));
+    const before = directory.getForAdmin();
+    const after = directory.save(req.body, req.user.username);
+    const changes = {};
+    for (const key of new Set([...Object.keys(before.settings), ...Object.keys(after.settings)])) {
+      const from = JSON.stringify(before.settings[key] ?? '');
+      const to = JSON.stringify(after.settings[key] ?? '');
+      if (from === to) continue;
+      // Certificates are long and not meaningful in a log line; record only that they changed.
+      changes[key] = key === 'caCert'
+        ? [before.settings[key] ? 'set' : '', after.settings[key] ? 'replaced' : '']
+        : [directoryValue(before.settings[key]), directoryValue(after.settings[key])];
+    }
+    // Never log the service account password itself.
+    if (req.body?.clearBindPassword === true && before.hasBindPassword) changes.bindPassword = ['set', 'cleared'];
+    else if (typeof req.body?.bindPassword === 'string' && req.body.bindPassword) changes.bindPassword = [before.hasBindPassword ? 'set' : '', 'changed'];
+    if (Object.keys(changes).length) onAudit(req.user, 'directory.update', 'Company directory (LDAP / AD)', changes);
+    res.json(after);
   });
 
   adminRouter.post('/directory/test', async (req, res) => {

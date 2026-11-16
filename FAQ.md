@@ -263,15 +263,23 @@ integration is a candidate for future work.
 
 ### What audit logging and monitoring are available?
 
-The application writes timestamped operational and security-relevant events (such
-as document-upload activity with actor IP, and server errors) to stdout/stderr. It
-does not maintain a separate tamper-evident audit store inside the app. For
-enterprise monitoring we recommend collecting container/process logs into your
-SIEM for retention and alerting, placing the app behind a proxy that logs
-authenticated user identity for per-user attribution, and monitoring the host and
-the SQLite data directory with your existing endpoint and file-integrity tooling.
-A dedicated in-app audit trail is a reasonable future enhancement for
-organizations with strict audit requirements.
+**In-app audit log.** Every addition, change and deletion made in the app is
+recorded with the signed-in user, their role and the time: records in every
+module (KPIs, stand-up tasks, issues, objectives, projects, processes, contacts,
+notes, incidents), rotation planner changes, imports, settings changes, user
+management and directory (LDAP / AD) settings. Edits keep the before and after
+values; deletions keep a copy of what was removed. Admins see the full log under
+**Settings → Audit log** (`GET /api/audit`). Entries cannot be edited or removed
+in the app. Passwords and other secrets are never written to the log. The log is
+stored in the same SQLite database, so it is not tamper-evident against someone
+with direct access to the database file.
+
+**Operational logs.** The application also writes timestamped operational and
+security-relevant events (such as document-upload activity with actor IP, and
+server errors) to stdout/stderr. For enterprise monitoring we recommend
+collecting container/process logs into your SIEM for retention and alerting, and
+monitoring the host and the SQLite data directory with your existing endpoint and
+file-integrity tooling.
 
 ---
 

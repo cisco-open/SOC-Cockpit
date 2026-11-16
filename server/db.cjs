@@ -7,6 +7,107 @@ const { DatabaseSync } = require('node:sqlite');
 const incidents = require('./incidents.cjs');
 
 const DEFAULT_CLOCK_ZONES = ['UTC', 'America/New_York'];
+// The Reports change history only shows entries that affect incident data or SLA results.
+const INCIDENT_AUDIT_PREFIXES = ['incident.', 'incidents.', 'sla-settings.'];
+
+const RECORD_TABLES = {
+  kpi: 'kpis',
+  rosterAssignment: 'roster_assignments',
+  matrixTask: 'matrix_tasks',
+  objective: 'objectives',
+  issue: 'issues',
+  followUp: 'follow_ups',
+  project: 'projects',
+  process: 'processes',
+  contact: 'contacts',
+  note: 'notes',
+  incident: 'incidents',
+};
+
+// ---- Audit helpers: describe a record and what changed in it ----
+
+const AUDIT_IGNORED_COLUMNS = new Set(['id', 'created_at', 'attachment_path']);
+const AUDIT_VALUE_MAX = 300;
+
+function auditValue(value) {
+  if (value === null || value === undefined) return '';
+  const textValue = String(value);
+  return textValue.length > AUDIT_VALUE_MAX ? `${textValue.slice(0, AUDIT_VALUE_MAX)}…` : textValue;
+}
+
+/** Column-by-column [before, after] pairs; an empty side means the record was created or deleted. */
+function rowChanges(before, after) {
+  const changes = {};
+  const keys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})]);
+  for (const key of keys) {
+    if (AUDIT_IGNORED_COLUMNS.has(key)) continue;
+    const from = auditValue(before?.[key]);
+    const to = auditValue(after?.[key]);
+    if (from !== to) changes[key] = [from, to];
+  }
+  return changes;
+}
+
+/** Human-readable name of a record for the audit log, e.g. "KPI-01 · Mean time to detect". */
+function recordLabel(kind, row) {
+  if (!row) return '';
+  const join = (...parts) => parts.map((part) => auditValue(part).trim()).filter(Boolean).join(' · ');
+  let label;
+  switch (kind) {
+    case 'kpi':
+    case 'project':
+    case 'process':
+      label = join(row.code, row.name);
+      break;
+    case 'followUp':
+      label = join(row.ref, row.title);
+      break;
+    case 'contact':
+      label = join(row.name);
+      break;
+    case 'note':
+      label = auditValue(row.text).slice(0, 80);
+      break;
+    case 'rosterAssignment':
+      label = join(row.analyst, row.roster_date, row.shift_name);
+      break;
+    case 'matrixTask':
+      label = join(row.title, row.task_date);
+      break;
+    default:
+      label = join(row.title);
+  }
+  return label || `#${row.id}`;
+}
+
+function listChange(before, after) {
+  const from = new Set(before);
+  const to = new Set(after);
+  return { added: after.filter((item) => !from.has(item)), removed: before.filter((item) => !to.has(item)) };
+}
+
+/** What changed in the rotation planner settings (staff list, shift labels, channel order). */
+function rosterSettingsChanges(before, after) {
+  const changes = {};
+  const staff = listChange(before.staff, after.staff);
+  if (staff.added.length) changes['staff added'] = ['', staff.added.join(', ')];
+  if (staff.removed.length) changes['staff removed'] = [staff.removed.join(', '), ''];
+  const describe = (label) => [label.label, label.hours, label.status].filter(Boolean).join(' · ');
+  const beforeLabels = new Map(before.labels.map((label) => [label.code, label]));
+  const afterLabels = new Map(after.labels.map((label) => [label.code, label]));
+  for (const [code, label] of afterLabels) {
+    const previous = beforeLabels.get(code);
+    if (!previous) changes[`shift label added: ${code}`] = ['', describe(label)];
+    else if (JSON.stringify(previous) !== JSON.stringify(label)) changes[`shift label changed: ${code}`] = [describe(previous), describe(label)];
+  }
+  for (const [code, label] of beforeLabels) {
+    if (!afterLabels.has(code)) changes[`shift label removed: ${code}`] = [describe(label), ''];
+  }
+  if (JSON.stringify(before.order) !== JSON.stringify(after.order)) {
+    changes['channel order'] = [before.order.join(' › '), after.order.join(' › ')];
+  }
+  return changes;
+}
 
 function createStore({ dbPath, env }) {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
@@ -51,7 +152,23 @@ function createStore({ dbPath, env }) {
     };
   }
 
-  function createRecord(kind, payload) {
+  // Every change made through the app is written to the audit log with the signed-in user.
+  // Callers that pass no user (internal reuse, tests) are not logged here.
+  function audit(user, action, target, details) {
+    if (user) incidents.writeAudit(db, user, action, target, details);
+  }
+
+  function readRecordRow(kind, id) {
+    const table = RECORD_TABLES[kind];
+    return table ? db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(integer(id)) : undefined;
+  }
+
+  // Incidents keep their own SLA-focused audit entries (see createIncident / updateIncident / deleteIncident).
+  function auditsGenerically(kind, user) {
+    return Boolean(user) && kind !== 'incident' && Boolean(RECORD_TABLES[kind]);
+  }
+
+  function createRecord(kind, payload, user) {
     switch (kind) {
       case 'kpi': {
         const rule = kpiRule(payload);
@@ -123,27 +240,19 @@ function createStore({ dbPath, env }) {
         throw new Error(`Unsupported record kind: ${kind}`);
     }
 
+    if (auditsGenerically(kind, user)) {
+      const created = db.prepare(`SELECT * FROM ${RECORD_TABLES[kind]} ORDER BY id DESC LIMIT 1`).get();
+      if (created) audit(user, `${kind}.create`, recordLabel(kind, created), { id: created.id, ...rowChanges({}, created) });
+    }
     return getSnapshot();
   }
 
-  function deleteRecord(kind, id) {
-    const tableByKind = {
-      kpi: 'kpis',
-      rosterAssignment: 'roster_assignments',
-      matrixTask: 'matrix_tasks',
-      objective: 'objectives',
-      issue: 'issues',
-      followUp: 'follow_ups',
-      project: 'projects',
-      process: 'processes',
-      contact: 'contacts',
-      note: 'notes',
-      incident: 'incidents',
-    };
-    const table = tableByKind[kind];
+  function deleteRecord(kind, id, user) {
+    const table = RECORD_TABLES[kind];
     if (!table) {
       throw new Error(`Unsupported record kind: ${kind}`);
     }
+    const before = auditsGenerically(kind, user) ? readRecordRow(kind, id) : undefined;
     if (kind === 'objective' || kind === 'process') {
       const table = kind === 'objective' ? 'objectives' : 'processes';
       const existing = db.prepare(`SELECT attachment_path FROM ${table} WHERE id = ?`).get(integer(id));
@@ -157,10 +266,15 @@ function createStore({ dbPath, env }) {
       syncRosterStaffFromContact(db, existing, null);
     }
     db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(integer(id));
+    if (before) {
+      // The full record is kept in the log so it is clear what was removed.
+      audit(user, `${kind}.delete`, recordLabel(kind, before), { id: before.id, ...rowChanges(before, {}) });
+    }
     return getSnapshot();
   }
 
-  function updateRecord(kind, id, payload) {
+  function updateRecord(kind, id, payload, user) {
+    const before = auditsGenerically(kind, user) ? readRecordRow(kind, id) : undefined;
     switch (kind) {
       case 'kpi': {
         const rule = kpiRule(payload);
@@ -224,27 +338,43 @@ function createStore({ dbPath, env }) {
         throw new Error(`Unsupported record kind: ${kind}`);
     }
 
+    auditRecordUpdate(kind, before, user);
     return getSnapshot();
   }
 
-  function updateClockZones(zones) {
+  function auditRecordUpdate(kind, before, user) {
+    if (!before) return;
+    const after = readRecordRow(kind, before.id);
+    const changes = rowChanges(before, after);
+    if (Object.keys(changes).length) audit(user, `${kind}.update`, recordLabel(kind, after ?? before), { id: before.id, ...changes });
+  }
+
+  function updateClockZones(zones, user) {
+    const before = readClockZones(db);
     const nextZones = Array.isArray(zones) ? zones.filter(Boolean).slice(0, 2) : DEFAULT_CLOCK_ZONES;
     db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
       .run('extraClockZones', JSON.stringify(nextZones.length === 2 ? nextZones : DEFAULT_CLOCK_ZONES));
+    const after = readClockZones(db);
+    if (before.join() !== after.join()) audit(user, 'settings.clocks.update', 'World clocks', { zones: [before.join(', '), after.join(', ')] });
     return getSnapshot();
   }
 
-  function updateRosterPlannerSettings(payload) {
+  function updateRosterPlannerSettings(payload, user) {
+    const before = { staff: readRosterStaff(db), labels: readRosterLabels(db), order: readWorkforceChannelOrder(db) };
     const nextStaff = normalizeRosterStaff(payload?.staff);
     const nextLabels = normalizeRosterLabels(payload?.labels);
     const nextChannelOrder = normalizeWorkforceChannelOrder(payload?.channelOrder);
     upsertSetting(db, 'rosterStaff', JSON.stringify(nextStaff));
     upsertSetting(db, 'rosterLabels', JSON.stringify(nextLabels));
     upsertSetting(db, 'workforceChannelOrder', JSON.stringify(nextChannelOrder));
+    if (user) {
+      const changes = rosterSettingsChanges(before, { staff: readRosterStaff(db), labels: readRosterLabels(db), order: readWorkforceChannelOrder(db) });
+      if (Object.keys(changes).length) audit(user, 'roster.settings.update', 'Rotation planner settings', changes);
+    }
     return getSnapshot();
   }
 
-  function renameRosterStaff(previousName, nextName) {
+  function renameRosterStaff(previousName, nextName, user) {
     const from = text(previousName);
     const to = text(nextName);
     if (!from || !to) {
@@ -253,11 +383,12 @@ function createStore({ dbPath, env }) {
     const currentStaff = readRosterStaff(db);
     const updatedStaff = currentStaff.map((item) => item === from ? to : item);
     upsertSetting(db, 'rosterStaff', JSON.stringify(normalizeRosterStaff(updatedStaff)));
-    db.prepare('UPDATE roster_assignments SET analyst = ? WHERE analyst = ?').run(to, from);
+    const result = db.prepare('UPDATE roster_assignments SET analyst = ? WHERE analyst = ?').run(to, from);
+    if (from !== to) audit(user, 'roster.staff.rename', from, { name: [from, to], assignments: Number(result.changes) || 0 });
     return getSnapshot();
   }
 
-  function updateRosterLabelDefinition(previousCode, payload) {
+  function updateRosterLabelDefinition(previousCode, payload, user) {
     const from = text(previousCode);
     const currentLabels = readRosterLabels(db);
     const currentLabel = currentLabels.find((item) => item.code === from);
@@ -280,15 +411,21 @@ function createStore({ dbPath, env }) {
     upsertSetting(db, 'rosterLabels', JSON.stringify(normalizeRosterLabels(updatedLabels)));
     db.prepare('UPDATE roster_assignments SET shift_name = ?, role = ?, status = ?, health = ?, notes = ? WHERE shift_name = ?')
       .run(nextLabel.code, nextLabel.label, nextLabel.status, nextLabel.health, nextLabel.hours, from);
+    const changes = rowChanges(currentLabel, nextLabel);
+    if (Object.keys(changes).length) audit(user, 'roster.label.update', from, changes);
     return getSnapshot();
   }
 
-  function upsertRosterPlan(changes) {
+  function upsertRosterPlan(changes, user) {
     const items = Array.isArray(changes) ? changes : [];
     const selectExisting = db.prepare('SELECT id FROM roster_assignments WHERE roster_date = ? AND analyst = ? ORDER BY id');
     const updateExisting = db.prepare('UPDATE roster_assignments SET shift_name = ?, role = ?, status = ?, health = ?, notes = ? WHERE id = ?');
     const insertNew = db.prepare('INSERT INTO roster_assignments (roster_date, shift_name, role, analyst, status, health, notes) VALUES (?, ?, ?, ?, ?, ?, ?)');
     const deleteById = db.prepare('DELETE FROM roster_assignments WHERE id = ?');
+    let assigned = 0;
+    let cleared = 0;
+    const dates = new Set();
+    const analysts = new Set();
 
     items.forEach((item) => {
       const rosterDate = text(item.rosterDate);
@@ -301,6 +438,11 @@ function createStore({ dbPath, env }) {
 
       if (item.clear || !item.code) {
         existing.forEach((row) => deleteById.run(row.id));
+        if (existing.length) {
+          cleared += 1;
+          dates.add(rosterDate);
+          analysts.add(analyst);
+        }
         return;
       }
 
@@ -309,6 +451,9 @@ function createStore({ dbPath, env }) {
       const hours = text(item.hours);
       const status = text(item.status, 'Planned');
       const health = text(item.health, 'healthy');
+      assigned += 1;
+      dates.add(rosterDate);
+      analysts.add(analyst);
 
       if (existing.length > 0) {
         updateExisting.run(shiftCode, label, status, health, hours, existing[0].id);
@@ -319,14 +464,20 @@ function createStore({ dbPath, env }) {
       insertNew.run(rosterDate, shiftCode, label, analyst, status, health, hours);
     });
 
+    if (assigned + cleared > 0) {
+      const sortedDates = [...dates].sort();
+      const range = sortedDates.length > 1 ? `${sortedDates[0]} – ${sortedDates[sortedDates.length - 1]}` : sortedDates[0];
+      audit(user, 'roster.plan.update', `Rotation planner · ${range}`, { assigned, cleared, analysts: auditValue([...analysts].join(', ')) });
+    }
     return getSnapshot();
   }
 
-  function updateMatrixTask(id, payload) {
+  function updateMatrixTask(id, payload, user) {
     const existing = db.prepare('SELECT id, task_date, title, lead, urgency, importance, status, assignee, duration_minutes, due_time, notes, objective_id FROM matrix_tasks WHERE id = ?').get(integer(id));
     if (!existing) {
       throw new Error('Task not found');
     }
+    const before = user ? readRecordRow('matrixTask', id) : undefined;
     const urgency = payload.urgency == null ? existing.urgency : bool(payload.urgency);
     const importance = payload.importance == null ? existing.importance : bool(payload.importance);
     const quadrant = resolveQuadrant(urgency, importance);
@@ -347,10 +498,11 @@ function createStore({ dbPath, env }) {
         payload.objectiveId == null ? integer(existing.objective_id) : integer(payload.objectiveId),
         integer(id)
       );
+    auditRecordUpdate('matrixTask', before, user);
     return getSnapshot();
   }
 
-  function carryOverMatrixTasks(toDate, fromDate) {
+  function carryOverMatrixTasks(toDate, fromDate, user) {
     const target = noteDate(toDate);
     let source = text(fromDate);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(source)) {
@@ -365,6 +517,7 @@ function createStore({ dbPath, env }) {
     const existing = db.prepare('SELECT title, lead FROM matrix_tasks WHERE task_date = ?').all(target);
     const existingKeys = new Set(existing.map((row) => `${text(row.title).toLowerCase()}__${text(row.lead).toLowerCase()}`));
     const insert = db.prepare('INSERT INTO matrix_tasks (task_date, title, lead, assignee, duration_minutes, urgency, importance, quadrant, disposition, due_time, status, notes, objective_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    let copied = 0;
 
     for (const task of incomplete) {
       const key = `${text(task.title).toLowerCase()}__${text(task.lead).toLowerCase()}`;
@@ -372,6 +525,7 @@ function createStore({ dbPath, env }) {
         continue;
       }
       existingKeys.add(key);
+      copied += 1;
       insert.run(
         target,
         text(task.title),
@@ -389,10 +543,11 @@ function createStore({ dbPath, env }) {
       );
     }
 
+    if (copied) audit(user, 'matrixTask.carryOver', `${source} → ${target}`, { copied });
     return getSnapshot();
   }
 
-  function importStandupTasks(inputRows) {
+  function importStandupTasks(inputRows, user, file) {
     const rows = Array.isArray(inputRows) ? inputRows : [];
     // Keyed on Date + Task Description + Lead so re-imported sheets enrich the existing task instead of duplicating it.
     const existing = db.prepare('SELECT id, task_date, title, lead, assignee, duration_minutes, urgency, importance, due_time, status, notes, objective_id FROM matrix_tasks').all();
@@ -522,6 +677,7 @@ function createStore({ dbPath, env }) {
       added += 1;
     }
 
+    audit(user, 'matrixTask.import', file?.name || 'Stand-up workbook', { added, updated, skipped, objectivesCreated });
     return {
       snapshot: getSnapshot(),
       added,
@@ -534,11 +690,12 @@ function createStore({ dbPath, env }) {
     };
   }
 
-  function attachProcessDocument(id, document) {
+  function attachProcessDocument(id, document, user) {
     const existing = db.prepare('SELECT id, attachment_path FROM processes WHERE id = ?').get(integer(id));
     if (!existing) {
       throw new Error('Process not found');
     }
+    const before = user ? readRecordRow('process', id) : undefined;
 
     db.prepare('UPDATE processes SET attachment_name = ?, attachment_path = ? WHERE id = ?')
       .run(text(document?.name), text(document?.path), integer(id));
@@ -547,14 +704,16 @@ function createStore({ dbPath, env }) {
       removeStoredFile(existing.attachment_path);
     }
 
+    auditRecordUpdate('process', before, user);
     return getSnapshot();
   }
 
-  function attachObjectiveDocument(id, document) {
+  function attachObjectiveDocument(id, document, user) {
     const existing = db.prepare('SELECT id, attachment_path FROM objectives WHERE id = ?').get(integer(id));
     if (!existing) {
       throw new Error('Objective not found');
     }
+    const before = user ? readRecordRow('objective', id) : undefined;
 
     db.prepare('UPDATE objectives SET attachment_name = ?, attachment_path = ? WHERE id = ?')
       .run(text(document?.name), text(document?.path), integer(id));
@@ -563,6 +722,7 @@ function createStore({ dbPath, env }) {
       removeStoredFile(existing.attachment_path);
     }
 
+    auditRecordUpdate('objective', before, user);
     return getSnapshot();
   }
 
@@ -578,7 +738,7 @@ function createStore({ dbPath, env }) {
     }
   }
 
-  async function generateAdvisorBrief(targetDate) {
+  async function generateAdvisorBrief(targetDate, user) {
     const snapshot = getSnapshot();
     const briefDate = noteDate(targetDate);
     let content;
@@ -591,6 +751,7 @@ function createStore({ dbPath, env }) {
       content = buildFallbackBrief(snapshot, briefDate);
     }
     db.prepare('INSERT INTO advisor_briefs (created_at, content, source, brief_date) VALUES (?, ?, ?, ?)').run(new Date().toISOString(), content, source, briefDate);
+    audit(user, 'advisorBrief.create', `Executive update · ${briefDate}`, { source });
     return getSnapshot();
   }
 
@@ -650,7 +811,15 @@ function createStore({ dbPath, env }) {
       return snapshot;
     },
     readIncidentAudit(limit) {
+      return incidents.readAudit(db, limit, { actionPrefixes: INCIDENT_AUDIT_PREFIXES });
+    },
+    /** Full audit log across all modules (Settings → Audit log). */
+    readAudit(limit) {
       return incidents.readAudit(db, limit);
+    },
+    /** Lets other modules (user management, directory settings) record changes in the same log. */
+    writeAudit(user, action, target, details) {
+      audit(user, action, target, details);
     },
     updateClockZones,
     updateRosterPlannerSettings,

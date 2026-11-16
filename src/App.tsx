@@ -32,6 +32,7 @@ import {
   Plus,
   Printer,
   RefreshCw,
+  ScrollText,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -70,6 +71,8 @@ import {
 } from './data';
 import { UserManagementTab } from './UserAdmin';
 import { DirectorySettingsPanel } from './DirectorySettings';
+import { AuditLogTab } from './AuditLog';
+import { useConfirm } from './ConfirmDialog';
 import { ReportsView } from './Reports';
 import { SlaPolicySettings } from './SlaPolicies';
 import { computeKpiHealth } from './reportCalc';
@@ -77,7 +80,7 @@ import type { AppSnapshot, AuthUser, FeedItem, Health, IssueRow, IssueStatus, Kp
 
 type ActiveView = 'overview' | 'workforce' | 'standups' | 'service' | 'issues' | 'objectives' | 'projects' | 'processes' | 'contacts' | 'notes' | 'reports' | 'advisor' | 'settings';
 
-type SettingsTab = 'appearance' | 'clocks' | 'readiness' | 'sla' | 'system' | 'users' | 'directory';
+type SettingsTab = 'appearance' | 'clocks' | 'readiness' | 'sla' | 'system' | 'users' | 'directory' | 'audit';
 
 const settingsTabs: Array<{ key: SettingsTab; label: string; icon: typeof Palette; adminOnly?: boolean }> = [
   { key: 'appearance', label: 'Appearance', icon: Palette },
@@ -87,7 +90,40 @@ const settingsTabs: Array<{ key: SettingsTab; label: string; icon: typeof Palett
   { key: 'system', label: 'System status', icon: Database, adminOnly: true },
   { key: 'users', label: 'User Management', icon: Users, adminOnly: true },
   { key: 'directory', label: 'Company Directory (LDAP / AD)', icon: Building2, adminOnly: true },
+  { key: 'audit', label: 'Audit log', icon: ScrollText, adminOnly: true },
 ];
+
+// How each record type is named in the delete confirmation.
+const RECORD_NOUNS: Record<RecordKind, string> = {
+  kpi: 'KPI',
+  rosterAssignment: 'roster entry',
+  matrixTask: 'stand-up task',
+  objective: 'objective',
+  issue: 'issue',
+  followUp: 'follow-up',
+  project: 'project',
+  process: 'process',
+  contact: 'contact',
+  note: 'daily note',
+  incident: 'incident',
+};
+
+/** The record's name as users know it, shown in the delete confirmation. */
+function recordDisplayName(app: AppSnapshot, kind: RecordKind, id: number): string {
+  const join = (...parts: Array<string | undefined>) => parts.map((part) => (part ?? '').trim()).filter(Boolean).join(' · ');
+  switch (kind) {
+    case 'kpi': { const item = app.kpis.find((row) => row.id === id); return item ? join(item.code, item.name) : ''; }
+    case 'matrixTask': return app.matrixTasks.find((row) => row.id === id)?.title ?? '';
+    case 'objective': return app.objectives.find((row) => row.id === id)?.title ?? '';
+    case 'issue': return app.issues.find((row) => row.id === id)?.title ?? '';
+    case 'followUp': { const item = app.followUps.find((row) => row.id === id); return item ? join(item.ref, item.title) : ''; }
+    case 'project': { const item = app.projects.find((row) => row.id === id); return item ? join(item.code, item.name) : ''; }
+    case 'process': { const item = app.processes.find((row) => row.id === id); return item ? join(item.code, item.name) : ''; }
+    case 'contact': return app.contacts.find((row) => row.id === id)?.name ?? '';
+    case 'note': { const text = app.notes.find((row) => row.id === id)?.text ?? ''; return text.length > 80 ? `${text.slice(0, 80)}…` : text; }
+    default: return '';
+  }
+}
 
 type WorkforcePlannerRow = {
   id: number;
@@ -568,6 +604,7 @@ function computeSummary(snapshot: AppSnapshot, planningDate: string, levers: Rea
 export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const now = useClock();
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('appearance');
+  const [confirmAction, confirmDialog] = useConfirm();
   const isAdmin = user.role === 'Admin';
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -753,6 +790,26 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
   }
 
   async function deleteRecord(kind: RecordKind, id: number) {
+    const noun = RECORD_NOUNS[kind];
+    const name = snapshot ? recordDisplayName(snapshot, kind, id) : '';
+    const attachment = kind === 'objective'
+      ? snapshot?.objectives.find((row) => row.id === id)?.attachmentName
+      : kind === 'process' ? snapshot?.processes.find((row) => row.id === id)?.attachmentName : '';
+    const confirmed = await confirmAction({
+      title: `Delete ${noun}?`,
+      message: (
+        <>
+          <p>{name ? <>Are you sure you want to delete the {noun} <strong>{name}</strong>?</> : <>Are you sure you want to delete this {noun}?</>}</p>
+          {attachment ? <p>Its attached document <strong>{attachment}</strong> is deleted as well.</p> : null}
+          {kind === 'objective' ? <p>Stand-up tasks linked to it stay, but are no longer linked.</p> : null}
+          <p>This action cannot be undone. The deletion is recorded in the audit log.</p>
+        </>
+      ),
+      confirmLabel: `Delete ${noun}`,
+    });
+    if (!confirmed) {
+      return;
+    }
     await mutate(`delete-${kind}-${id}`, () => api.deleteRecord(kind, id));
   }
 
@@ -2341,6 +2398,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
       sla: () => <SlaPolicySettings app={app} busy={Boolean(busy)} mutate={mutate} />,
       users: () => <UserManagementTab currentUserId={user.id} />,
       directory: () => <DirectorySettingsPanel />,
+      audit: () => <AuditLogTab />,
     };
 
     return (
@@ -2431,6 +2489,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
           {moduleContent[active]}
         </main>
       </div>
+      {confirmDialog}
 
       <footer className="statusbar" aria-label="Runtime connectivity status">
         <div className="statusbar-group">

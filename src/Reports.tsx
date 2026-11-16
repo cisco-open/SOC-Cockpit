@@ -9,6 +9,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Download, FileText, Pencil, Plus, Printer, Save, Trash2, Upload } from 'lucide-react';
 import { api } from './api';
+import { auditActionLabel, describeAudit } from './auditFormat';
+import { useConfirm } from './ConfirmDialog';
 import type { AppSnapshot, AuthUser, Health, IncidentAuditEntry, IncidentPriority, IncidentRow, IncidentStatus, ReportSettings } from './types';
 import {
   PRIORITIES,
@@ -894,6 +896,7 @@ function IncidentRegister({ app, canEdit, isAdmin, busy, mutate }: { app: AppSna
   const [filter, setFilter] = useState({ customer: '', status: '', search: '' });
   const [importResult, setImportResult] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [confirmAction, confirmDialog] = useConfirm();
   const incidents = app.incidents ?? [];
   const customers = customersOf(app);
   const settings = reportSettingsOf(app);
@@ -951,8 +954,24 @@ function IncidentRegister({ app, canEdit, isAdmin, busy, mutate }: { app: AppSna
   const now16 = () => `${dateKey(new Date())}T${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`;
   const field = (key: keyof IncidentForm) => ({ value: form[key], onChange: (event: { target: { value: string } }) => setForm({ ...form, [key]: event.target.value }) });
 
+  async function deleteIncident(item: IncidentRow) {
+    const name = [item.ref, item.title].filter(Boolean).join(' · ') || `#${item.id}`;
+    const confirmed = await confirmAction({
+      title: 'Delete incident?',
+      message: (
+        <>
+          <p>Are you sure you want to delete the incident <strong>{name}</strong>?</p>
+          <p>It will no longer count in SLA reports. This action cannot be undone. The deletion is recorded in the audit log.</p>
+        </>
+      ),
+      confirmLabel: 'Delete incident',
+    });
+    if (confirmed) await mutate(`delete-incident-${item.id}`, () => api.deleteRecord('incident', item.id));
+  }
+
   return (
     <div className="report-register">
+      {confirmDialog}
       <section className="panel report-register-list">
         <header className="panel-head"><h2>Incident register</h2><div className="panel-meta"><span className="muted">{incidents.length} incidents</span></div></header>
         <div className="panel-body">
@@ -988,7 +1007,7 @@ function IncidentRegister({ app, canEdit, isAdmin, busy, mutate }: { app: AppSna
                           <td className="ta-r">
                             <div className="action-row">
                               <button type="button" className="icon-btn" onClick={() => edit(item)} title="Edit incident" aria-label="Edit incident"><Pencil size={14} /></button>
-                              {isAdmin ? <button type="button" className="icon-btn" onClick={() => { if (window.confirm(`Delete incident ${item.ref || item.id}? It will no longer count in SLA reports. The deletion is logged.`)) void mutate(`delete-incident-${item.id}`, () => api.deleteRecord('incident', item.id)); }} title="Delete incident (Admin only, logged)" aria-label="Delete incident"><Trash2 size={14} /></button> : null}
+                              {isAdmin ? <button type="button" className="icon-btn" onClick={() => void deleteIncident(item)} title="Delete incident (Admin only, logged)" aria-label="Delete incident"><Trash2 size={14} /></button> : null}
                             </div>
                           </td>
                         ) : null}
@@ -1065,40 +1084,9 @@ function IncidentRegister({ app, canEdit, isAdmin, busy, mutate }: { app: AppSna
 }
 
 // ---------------------------------------------------------------------------
-// Change history (Admin): who changed incident data or SLA policies, and when
+// Change history (Admin): who changed incident data or SLA policies, and when.
+// The full log across all modules is under Settings → Audit log.
 // ---------------------------------------------------------------------------
-
-const AUDIT_LABELS: Record<string, string> = {
-  'incident.create': 'Added incident',
-  'incident.update': 'Edited incident',
-  'incident.delete': 'Deleted incident',
-  'incidents.import': 'Imported file',
-  'sla-settings.update': 'Changed SLA policies',
-};
-
-function describeAudit(entry: IncidentAuditEntry): string {
-  const details = entry.details ?? {};
-  if (details.truncated) {
-    // Large changes are stored as a summary of what changed rather than the full before/after values.
-    if (details.unreadable) return 'Details not available (recorded by an older version)';
-    const keys = Array.isArray(details.keys) ? (details.keys as string[]) : [];
-    const count = Number(details.keyCount) || keys.length;
-    const shown = keys.slice(0, 5).join(', ');
-    return `${count} change${count === 1 ? '' : 's'} (too large to store in full)${shown ? `: ${shown}${count > 5 ? `, +${count - 5} more` : ''}` : ''}`;
-  }
-  if (entry.action === 'incidents.import') {
-    return `${details.added ?? 0} added, ${details.updated ?? 0} updated, ${details.skipped ?? 0} skipped`;
-  }
-  const fields = Object.keys(details).filter((key) => key !== 'id' && key !== 'format' && key !== 'sha256');
-  if (entry.action === 'incident.update') {
-    return fields.length ? fields.map((key) => {
-      const pair = details[key] as [string, string];
-      return `${key}: ${pair?.[0] || '—'} → ${pair?.[1] || '—'}`;
-    }).join('; ') : 'no SLA-relevant change';
-  }
-  if (entry.action === 'sla-settings.update') return fields.join(', ');
-  return '';
-}
 
 function IncidentHistory({ refreshKey }: { refreshKey: number }) {
   const [entries, setEntries] = useState<IncidentAuditEntry[] | null>(null);
@@ -1122,7 +1110,7 @@ function IncidentHistory({ refreshKey }: { refreshKey: number }) {
             {entries.slice(0, 50).map((entry) => (
               <li key={entry.id}>
                 <div className="audit-head">
-                  <strong>{AUDIT_LABELS[entry.action] ?? entry.action}</strong>
+                  <strong>{auditActionLabel(entry.action)}</strong>
                   <span className="muted"> · {entry.target}</span>
                 </div>
                 <div className="muted small">{new Date(entry.at).toLocaleString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · {entry.username || 'system'}{entry.role ? ` (${entry.role})` : ''}</div>

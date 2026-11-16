@@ -292,6 +292,9 @@ export interface IncidentAuditEntry {
   details: Record<string, unknown>;
 }
 
+/** An entry in the change history; the same shape now covers every module, not only incidents. */
+export type AuditEntry = IncidentAuditEntry;
+
 export interface ComplianceThresholds {
   /** Contracted compliance target (%): at or above is green. */
   target: number;
