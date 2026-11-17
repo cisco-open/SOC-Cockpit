@@ -107,28 +107,36 @@
   table-layout: fixed;
 }
 
-.objective-col-expand {
-  width: 34px;
+/* Widths include the 14px left/right cell padding applied to .grid-table cells. */
+.register-col-expand { width: 58px; }
+.register-col-id { width: 110px; }
+.register-col-scope { width: 76px; }
+.register-col-person { width: 170px; }
+.register-col-phase { width: 120px; }
+.register-col-link { width: 112px; }
+.register-col-doc { width: 180px; }
+.register-col-due { width: 116px; }
+.register-col-progress { width: 140px; }
+.register-col-action { width: 124px; }
+
+.objective-table .register-id,
+.objective-table .register-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.objective-col-scope {
-  width: 44px;
+.progress-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.objective-col-lead {
-  width: 138px;
+.progress-cell .mini-bar {
+  width: 56px;
 }
 
-.objective-col-due {
-  width: 92px;
-}
-
-.objective-col-progress {
-  width: 84px;
-}
-
-.objective-col-action {
-  width: 86px;
+.grid-table th.ta-r {
+  text-align: right;
 }
 
 .objective-intake {
