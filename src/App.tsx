@@ -80,6 +80,10 @@ import type { AppSnapshot, AuthUser, FeedItem, Health, IssueRow, IssueStatus, Kp
 
 type ActiveView = 'overview' | 'workforce' | 'standups' | 'service' | 'issues' | 'objectives' | 'projects' | 'processes' | 'contacts' | 'notes' | 'reports' | 'advisor' | 'settings';
 
+// Separate from the old 'soc-panels-collapsed-default' key, which was saved on every load and so
+// cannot tell a deliberate choice from the old open default. Panels are closed unless this is 'true'.
+const PANELS_EXPANDED_KEY = 'soc-panels-expanded-default';
+
 type SettingsTab = 'appearance' | 'clocks' | 'readiness' | 'sla' | 'system' | 'users' | 'directory' | 'audit';
 
 const settingsTabs: Array<{ key: SettingsTab; label: string; icon: typeof Palette; adminOnly?: boolean }> = [
@@ -626,7 +630,8 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
   const [noteForm, setNoteForm] = useState(defaultNoteForm);
   const [kpiForm, setKpiForm] = useState(defaultKpiForm);
   const [plannerEditMode, setPlannerEditMode] = useState(false);
-  const panelsDefaultCollapsedInitial = typeof window !== 'undefined' && localStorage.getItem('soc-panels-collapsed-default') === 'true';
+  // Add/Edit side panels start collapsed unless the user switched on "Expand panels by default".
+  const panelsDefaultCollapsedInitial = typeof window === 'undefined' || localStorage.getItem(PANELS_EXPANDED_KEY) !== 'true';
   const [controlsCollapsed, setControlsCollapsed] = useState(panelsDefaultCollapsedInitial);
   const [panelsCollapsedByDefault, setPanelsCollapsedByDefault] = useState<boolean>(panelsDefaultCollapsedInitial);
   const [issueIntakeCollapsed, setIssueIntakeCollapsed] = useState(panelsDefaultCollapsedInitial);
@@ -789,7 +794,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
   }, [registerView]);
 
   useEffect(() => {
-    localStorage.setItem('soc-panels-collapsed-default', String(panelsCollapsedByDefault));
+    localStorage.setItem(PANELS_EXPANDED_KEY, String(!panelsCollapsedByDefault));
   }, [panelsCollapsedByDefault]);
 
   useEffect(() => {
