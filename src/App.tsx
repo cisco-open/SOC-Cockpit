@@ -280,9 +280,9 @@ function TrendGlyph({ trend }: { trend: Trend }) {
   return <Minus size={13} aria-hidden="true" />;
 }
 
-function Panel({ title, meta, span = 4, className, children }: { title: string; meta?: ReactNode; span?: number; className?: string; children: ReactNode }) {
+function Panel({ title, meta, span = 4, className, id, children }: { title: string; meta?: ReactNode; span?: number; className?: string; id?: string; children: ReactNode }) {
   return (
-    <section className={className ? `panel ${className}` : 'panel'} style={{ gridColumn: `span ${span}` }}>
+    <section id={id} className={className ? `panel ${className}` : 'panel'} style={{ gridColumn: `span ${span}` }}>
       <header className="panel-head">
         <h2>{title}</h2>
         {meta ? <div className="panel-meta">{meta}</div> : null}
@@ -640,6 +640,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
   const [plannerDraft, setPlannerDraft] = useState<Record<string, RosterLabel | null>>({});
   const [draggingAnalyst, setDraggingAnalyst] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditState>(defaultEditState);
+  const [editorFocus, setEditorFocus] = useState<keyof EditState | null>(null);
   const [notesDraft, setNotesDraft] = useState<{ id: number; text: string } | null>(null);
   const [expandedObjectives, setExpandedObjectives] = useState<Set<number>>(() => new Set());
   const [expandedIssues, setExpandedIssues] = useState<Set<number>>(() => new Set());
@@ -680,7 +681,34 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
 
   function setEditor<K extends keyof EditState>(key: K, value: EditState[K]) {
     setEditing((current) => ({ ...current, [key]: value }));
+    if (value === null || key === 'matrixTask' || key === 'staff') {
+      return;
+    }
+    // Starting an edit must show the form: reopen a collapsed side panel, then scroll to it (see effect below).
+    const expand: Partial<Record<keyof EditState, (collapsed: boolean) => void>> = {
+      kpi: setKpiIntakeCollapsed,
+      issue: setIssueIntakeCollapsed,
+      objective: setObjectiveIntakeCollapsed,
+      project: setProjectIntakeCollapsed,
+      process: setProcessIntakeCollapsed,
+      contact: setContactIntakeCollapsed,
+      rosterLabel: setControlsCollapsed,
+    };
+    expand[key]?.(false);
+    setEditorFocus(key);
   }
+
+  useEffect(() => {
+    if (!editorFocus) {
+      return;
+    }
+    const form = document.getElementById(`editor-${editorFocus}`);
+    if (form) {
+      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      form.querySelector<HTMLElement>('input:not([type="hidden"]):not([type="file"]):not(:disabled), select:not(:disabled), textarea:not(:disabled)')?.focus({ preventScroll: true });
+    }
+    setEditorFocus(null);
+  }, [editorFocus]);
 
   function applyPanelDefaultCollapsed(next: boolean) {
     setPanelsCollapsedByDefault(next);
@@ -1319,7 +1347,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
               </div>
             </section>
 
-            <section className="planner-side-section">
+            <section className="planner-side-section" id="editor-rosterLabel">
               <div className="planner-side-title">Create shift label</div>
               <div className="form-stack compact">
                 <div className="form-grid two">
@@ -1590,7 +1618,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
             </button>
           </aside>
         ) : (
-        <Panel title={editing.kpi ? 'Edit KPI' : 'Add KPI'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setKpiIntakeCollapsed(true)} title="Collapse add KPI" aria-label="Collapse add KPI"><ChevronRight size={14} /></button>}>
+        <Panel id="editor-kpi" title={editing.kpi ? 'Edit KPI' : 'Add KPI'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setKpiIntakeCollapsed(true)} title="Collapse add KPI" aria-label="Collapse add KPI"><ChevronRight size={14} /></button>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (editing.kpi) { void saveRecord('kpi', editing.kpi, kpiForm, () => { setKpiForm(defaultKpiForm); setEditor('kpi', null); }); return; } void createRecord('kpi', kpiForm, () => setKpiForm(defaultKpiForm)); }}>
             <div className="form-grid two">
               <Field label="Code"><input value={kpiForm.code} onChange={(event) => setKpiForm({ ...kpiForm, code: event.target.value })} required /></Field>
@@ -1640,7 +1668,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
             </tbody>
           </table>
         </Panel>
-        <Panel title={editing.followUp ? 'Edit follow-up' : 'Add follow-up'} span={4} meta={<span className="muted">operations backlog</span>}>
+        <Panel id="editor-followUp" title={editing.followUp ? 'Edit follow-up' : 'Add follow-up'} span={4} meta={<span className="muted">operations backlog</span>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (editing.followUp) { void saveRecord('followUp', editing.followUp, followUpForm, () => { setFollowUpForm(defaultFollowUpForm); setEditor('followUp', null); }); return; } void createRecord('followUp', followUpForm, () => setFollowUpForm(defaultFollowUpForm)); }}>
             <Field label="Reference"><input value={followUpForm.ref} onChange={(event) => setFollowUpForm({ ...followUpForm, ref: event.target.value })} required /></Field>
             <Field label="Title"><input value={followUpForm.title} onChange={(event) => setFollowUpForm({ ...followUpForm, title: event.target.value })} required /></Field>
@@ -1683,7 +1711,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
             </button>
           </aside>
         ) : (
-        <Panel title={editing.issue ? 'Edit issue' : 'Add issue'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setIssueIntakeCollapsed(true)} title="Collapse add issue" aria-label="Collapse add issue"><ChevronRight size={14} /></button>}>
+        <Panel id="editor-issue" title={editing.issue ? 'Edit issue' : 'Add issue'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setIssueIntakeCollapsed(true)} title="Collapse add issue" aria-label="Collapse add issue"><ChevronRight size={14} /></button>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (editing.issue) { void saveRecord('issue', editing.issue, issueForm, () => { setIssueForm(defaultIssueForm); setEditor('issue', null); }); return; } void createRecord('issue', issueForm, () => setIssueForm(defaultIssueForm)); }}>
             <Field label="Scope"><select value={issueForm.scope} onChange={(event) => setIssueForm({ ...issueForm, scope: event.target.value })}>{objectiveScopeOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
             <Field label="Status"><select value={issueForm.status} onChange={(event) => setIssueForm({ ...issueForm, status: event.target.value as IssueStatus })}>{issueStatusOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
@@ -1862,7 +1890,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
             </button>
           </aside>
         ) : (
-        <Panel title={editing.objective ? 'Edit objective' : 'Add objective'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setObjectiveIntakeCollapsed(true)} title="Collapse add objective" aria-label="Collapse add objective"><ChevronRight size={14} /></button>}>
+        <Panel id="editor-objective" title={editing.objective ? 'Edit objective' : 'Add objective'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setObjectiveIntakeCollapsed(true)} title="Collapse add objective" aria-label="Collapse add objective"><ChevronRight size={14} /></button>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); void submitObjectiveForm(); }}>
             <Field label="Scope"><select value={objectiveForm.scope} onChange={(event) => setObjectiveForm({ ...objectiveForm, scope: event.target.value })}>{objectiveScopeOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></Field>
             <Field label="Objective title"><input value={objectiveForm.title} onChange={(event) => setObjectiveForm({ ...objectiveForm, title: event.target.value })} required /></Field>
@@ -2048,7 +2076,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
             </button>
           </aside>
         ) : (
-        <Panel title={editing.project ? 'Edit project' : 'Add project'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setProjectIntakeCollapsed(true)} title="Collapse add project" aria-label="Collapse add project"><ChevronRight size={14} /></button>}>
+        <Panel id="editor-project" title={editing.project ? 'Edit project' : 'Add project'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setProjectIntakeCollapsed(true)} title="Collapse add project" aria-label="Collapse add project"><ChevronRight size={14} /></button>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (editing.project) { void saveRecord('project', editing.project, projectForm, () => { setProjectForm(defaultProjectForm); setEditor('project', null); }); return; } void createRecord('project', projectForm, () => setProjectForm(defaultProjectForm)); }}>
             <div className="form-grid two">
               <Field label="Code"><input value={projectForm.code} onChange={(event) => setProjectForm({ ...projectForm, code: event.target.value })} required /></Field>
@@ -2147,7 +2175,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
             </button>
           </aside>
         ) : (
-        <Panel title={editing.process ? 'Edit process' : 'Add process'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setProcessIntakeCollapsed(true)} title="Collapse add process" aria-label="Collapse add process"><ChevronRight size={14} /></button>}>
+        <Panel id="editor-process" title={editing.process ? 'Edit process' : 'Add process'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setProcessIntakeCollapsed(true)} title="Collapse add process" aria-label="Collapse add process"><ChevronRight size={14} /></button>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); void submitProcessForm(); }}>
             <div className="form-grid two">
               <Field label="Code"><input value={processForm.code} onChange={(event) => setProcessForm({ ...processForm, code: event.target.value })} required /></Field>
@@ -2209,7 +2237,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
             </button>
           </aside>
         ) : (
-        <Panel title={editing.contact ? 'Edit contact' : 'Add contact'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setContactIntakeCollapsed(true)} title="Collapse add contact" aria-label="Collapse add contact"><ChevronRight size={14} /></button>}>
+        <Panel id="editor-contact" title={editing.contact ? 'Edit contact' : 'Add contact'} className="workforce-controls objective-intake" meta={<button type="button" className="icon-btn" onClick={() => setContactIntakeCollapsed(true)} title="Collapse add contact" aria-label="Collapse add contact"><ChevronRight size={14} /></button>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (editing.contact) { void saveRecord('contact', editing.contact, contactForm, () => { setContactForm(defaultContactForm); setEditor('contact', null); }); return; } void createRecord('contact', contactForm, () => setContactForm(defaultContactForm)); }}>
             <Field label="Name"><input value={contactForm.name} onChange={(event) => setContactForm({ ...contactForm, name: event.target.value })} required /></Field>
             <Field label="Role"><input value={contactForm.role} onChange={(event) => setContactForm({ ...contactForm, role: event.target.value })} required /></Field>
@@ -2275,7 +2303,7 @@ export function App({ user, onSignOut }: { user: AuthUser; onSignOut: () => void
             </tbody>
           </table>
         </Panel>
-        <Panel title={editing.note ? 'Edit daily note' : 'Add daily note'} span={4} meta={<span className="muted">date, month, year, pinned</span>}>
+        <Panel id="editor-note" title={editing.note ? 'Edit daily note' : 'Add daily note'} span={4} meta={<span className="muted">date, month, year, pinned</span>}>
           <form className="form-stack" onSubmit={(event) => { event.preventDefault(); if (editing.note) { void saveRecord('note', editing.note, noteForm, () => { resetNoteForm(); setEditor('note', null); }); return; } void createRecord('note', noteForm, () => resetNoteForm()); }}>
             <Field label="Entry date"><input type="date" value={noteForm.noteDate} onChange={(event) => setNoteForm({ ...noteForm, noteDate: event.target.value })} required /></Field>
             <Field label="Note"><textarea value={noteForm.text} onChange={(event) => setNoteForm({ ...noteForm, text: event.target.value })} rows={6} required /></Field>

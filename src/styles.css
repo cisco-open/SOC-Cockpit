@@ -3895,6 +3895,5 @@ time {
   padding: 18px;
 }
 
-
-
-
+/* Edit forms scrolled into view keep a little space above them. */
+[id^='editor-'] { scroll-margin-top: 16px; }
