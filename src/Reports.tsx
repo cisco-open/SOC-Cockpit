@@ -916,6 +916,12 @@ function IncidentRegister({ app, canEdit, isAdmin, busy, mutate, startCollapsed 
   function edit(item: IncidentRow) {
     setEditingId(item.id);
     setSideCollapsed(false);
+    // Bring the form into view once it has rendered, so editing a row far down the list is visible.
+    window.setTimeout(() => {
+      const form = document.getElementById('editor-incident');
+      form?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      form?.querySelector<HTMLElement>('input, select, textarea')?.focus({ preventScroll: true });
+    }, 0);
     setForm({
       ref: item.ref, customer: item.customer, title: item.title, priority: item.priority, category: item.category, source: item.source,
       status: item.status, analyst: item.analyst, occurredAt: item.occurredAt, detectedAt: item.detectedAt,
@@ -1040,7 +1046,7 @@ function IncidentRegister({ app, canEdit, isAdmin, busy, mutate, startCollapsed 
       ) : null}
       {canEdit && !sideCollapsed ? (
         <aside className="report-register-side">
-          <section className="panel">
+          <section className="panel" id="editor-incident">
             <header className="panel-head">
               <h2>{editingId ? 'Edit incident' : 'Add incident'}</h2>
               <div className="panel-meta"><button type="button" className="icon-btn" onClick={() => setSideCollapsed(true)} title="Collapse add incident" aria-label="Collapse add incident"><ChevronRight size={14} /></button></div>
