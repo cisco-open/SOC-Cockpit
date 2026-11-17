@@ -1060,7 +1060,7 @@ time {
   box-shadow: inset -1px 0 0 var(--row-focus-line), inset 0 1px 0 var(--row-focus-line), inset 0 -1px 0 var(--row-focus-line);
 }
 
-/* Issue register rows: tint by health/progress state */
+/* Register rows (issues, objectives, projects): tint by health */
 .grid-table.objective-table tbody tr.issue-row.issue-health-healthy td {
   background: rgba(30, 138, 76, 0.18);
 }
