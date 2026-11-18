@@ -3141,6 +3141,7 @@ time {
 
 .ac-grid {
   display: grid;
+  align-items: start;
   gap: 18px;
 }
 
