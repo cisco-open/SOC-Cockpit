@@ -2,21 +2,22 @@
 // Settings → SLA & KPI policies: report header and calendar, compliance thresholds,
 // default and per-customer SLA targets, and KPI health rules.
 
+import { Trans } from 'react-i18next';
+import { getLocale, t } from './i18n';
 import { useEffect, useState } from 'react';
 import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { api } from './api';
 import type { AppSnapshot, Health, IncidentPriority, Kpi, KpiDirection, ReportSettings, SlaTargets } from './types';
-import { PRIORITIES, computeKpiHealth, customersOf, formatDuration, parseDurationInput, reportSettingsOf } from './reportCalc';
+import { PRIORITIES, computeKpiHealth, customersOf, formatDuration, parseDurationInput, reportSettingsOf, weekdayNames } from './reportCalc';
 
 type Mutate = (action: string, work: () => Promise<AppSnapshot>) => Promise<void>;
 type Measure = 'detect' | 'ack' | 'resolve';
 
-const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const PRIORITY_COLORS: Record<IncidentPriority, string> = { P1: '#d5323f', P2: '#f08c00', P3: '#0a60ff', P4: '#8d99a6' };
 const MEASURES: Array<{ key: Measure; label: string }> = [
-  { key: 'detect', label: 'Detect' },
-  { key: 'ack', label: 'Acknowledge' },
-  { key: 'resolve', label: 'Resolve' },
+  { key: 'detect', label: 'Detect within' },
+  { key: 'ack', label: 'Acknowledge within' },
+  { key: 'resolve', label: 'Resolve within' },
 ];
 
 function cloneTargets(targets: SlaTargets): SlaTargets {
@@ -55,7 +56,7 @@ function DurationInput({ minutes, onChange, disabled, allowOff }: { minutes: num
       onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commit(); } }}
       disabled={disabled}
       aria-invalid={invalid}
-      title="Examples: 15m, 4h, 1d 2h"
+      title={t("Examples: 15m, 4h, 1d 2h")}
     />
   );
 }
@@ -67,7 +68,7 @@ function TargetsTable({ targets, base, onChange, disabled }: { targets: SlaTarge
   return (
     <table className="grid-table sla-targets">
       <thead>
-        <tr><th>Priority</th>{MEASURES.map((measure) => <th key={measure.key}>{measure.label} within</th>)}</tr>
+        <tr><th>{t("Priority")}</th>{MEASURES.map((measure) => <th key={measure.key}>{t(measure.label)}</th>)}</tr>
       </thead>
       <tbody>
         {PRIORITIES.map((priority) => (
@@ -78,7 +79,7 @@ function TargetsTable({ targets, base, onChange, disabled }: { targets: SlaTarge
               return (
                 <td key={measure.key} className={changed ? 'sla-changed' : ''}>
                   <DurationInput minutes={targets[priority][measure.key]} onChange={(value) => set(priority, measure.key, value)} disabled={disabled} allowOff={measure.key === 'detect'} />
-                  {changed ? <small className="muted"> standard {formatDuration(base[priority][measure.key]) || 'off'}</small> : null}
+                  {changed ? <small className="muted"> {t("Standard: {{duration}}", { duration: base[priority][measure.key] ? formatDuration(base[priority][measure.key]) : t('Not measured') })}</small> : null}
                 </td>
               );
             })}
@@ -139,79 +140,79 @@ export function SlaPolicySettings({ app, busy, mutate }: { app: AppSnapshot; bus
   return (
     <div className="sla-policies">
       <section className="panel">
-        <header className="panel-head"><h2>Compliance thresholds</h2><div className="panel-meta"><span className="muted">colour of SLA percentages in every report</span></div></header>
+        <header className="panel-head"><h2>{t("Compliance thresholds")}</h2><div className="panel-meta"><span className="muted">{t("colour of SLA percentages in every report")}</span></div></header>
         <div className="panel-body form-stack">
           <div className="form-grid two">
-            <label className="field"><span>Contracted compliance target (%)</span>
+            <label className="field"><span>{t("Contracted compliance target (%)")}</span>
               <input type="number" min={0} max={100} step={0.5} value={draft.compliance.target} onChange={(event) => setCompliance('target', event.target.value)} />
             </label>
-            <label className="field"><span>Amber from (%)</span>
+            <label className="field"><span>{t("Amber from (%)")}</span>
               <input type="number" min={0} max={draft.compliance.target} step={0.5} value={draft.compliance.amber} onChange={(event) => setCompliance('amber', event.target.value)} />
             </label>
           </div>
-          <div className="sla-bands" aria-label="Threshold preview">
-            <span className="sla-band risk">Red · below {draft.compliance.amber}%</span>
-            <span className="sla-band watch">Amber · {draft.compliance.amber}% – {draft.compliance.target}%</span>
-            <span className="sla-band healthy">Green · {draft.compliance.target}% or more</span>
+          <div className="sla-bands" aria-label={t("Threshold preview")}>
+            <span className="sla-band risk">{t("Red · below {{threshold}}%", { threshold: draft.compliance.amber })}</span>
+            <span className="sla-band watch">{t("Amber · {{amber}}%–{{target}}%", { amber: draft.compliance.amber, target: draft.compliance.target })}</span>
+            <span className="sla-band healthy">{t("Green · {{target}}% or more", { target: draft.compliance.target })}</span>
           </div>
         </div>
       </section>
 
       <section className="panel">
-        <header className="panel-head"><h2>Standard SLA targets</h2><div className="panel-meta"><span className="muted">used for every business unit without its own SLA</span></div></header>
+        <header className="panel-head"><h2>{t("Standard SLA targets")}</h2><div className="panel-meta"><span className="muted">{t("used for every business unit without its own SLA")}</span></div></header>
         <div className="panel-body form-stack">
           <TargetsTable targets={draft.slaTargets} onChange={(next) => setDraft({ ...draft, slaTargets: next })} />
-          <small className="muted">Type durations such as <code>15m</code>, <code>4h</code> or <code>1d 2h</code>. Set Detect to <code>off</code> if detection time is not measured for that priority.</small>
+          <small className="muted"><Trans i18nKey="Type durations such as <minutes/>, <hours/> or <days/>. Set Detect to <disabled/> if detection time is not measured for that priority." components={{ minutes: <code>15m</code>, hours: <code>4h</code>, days: <code>1d 2h</code>, disabled: <code>off</code> }} /></small>
         </div>
       </section>
 
       <section className="panel">
-        <header className="panel-head"><h2>Business unit SLAs</h2><div className="panel-meta"><span className="muted">{overrideNames.length} business unit{overrideNames.length === 1 ? '' : 's'} with their own SLA</span></div></header>
+        <header className="panel-head"><h2>{t("Business unit SLAs")}</h2><div className="panel-meta"><span className="muted">{t('businessUnitContracts', { count: overrideNames.length })}</span></div></header>
         <div className="panel-body form-stack">
           <div className="report-inline">
-            <input list="sla-customers" placeholder="Business unit name" value={newCustomer} onChange={(event) => setNewCustomer(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addOverride(); } }} />
+            <input list="sla-customers" placeholder={t("Business unit name")} value={newCustomer} onChange={(event) => setNewCustomer(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addOverride(); } }} />
             <datalist id="sla-customers">{knownCustomers.map((name) => <option key={name} value={name} />)}</datalist>
-            <button type="button" className="ghost-btn" onClick={addOverride} disabled={!newCustomer.trim() || Boolean(draft.customerSla[newCustomer.trim()])}><Plus size={14} /> Add business unit SLA</button>
+            <button type="button" className="ghost-btn" onClick={addOverride} disabled={!newCustomer.trim() || Boolean(draft.customerSla[newCustomer.trim()])}><Plus size={14} /> {t("Add business unit SLA")}</button>
           </div>
-          <small className="muted">A new business unit SLA starts as a copy of the standard targets. Names must match the Business Unit in the incident register exactly.</small>
+          <small className="muted">{t("A new business unit SLA starts as a copy of the standard targets. Names must match the Business Unit in the incident register exactly.")}</small>
           {overrideNames.length ? overrideNames.map((name) => (
             <div key={name} className="sla-customer">
               <div className="sla-customer-head">
                 <strong>{name}</strong>
-                {!customersOf(app).includes(name) ? <span className="sla-warning">no incidents for this business unit yet</span> : null}
+                {!customersOf(app).includes(name) ? <span className="sla-warning">{t("no incidents for this business unit yet")}</span> : null}
                 <span className="report-toolbar-spacer" />
-                <button type="button" className="ghost-btn" onClick={() => setDraft({ ...draft, customerSla: { ...draft.customerSla, [name]: cloneTargets(draft.slaTargets) } })} title="Reset to the standard targets"><RotateCcw size={14} /> Reset</button>
-                <button type="button" className="ghost-btn" onClick={() => removeOverride(name)} title="Remove this business unit SLA"><Trash2 size={14} /> Remove</button>
+                <button type="button" className="ghost-btn" onClick={() => setDraft({ ...draft, customerSla: { ...draft.customerSla, [name]: cloneTargets(draft.slaTargets) } })} title={t("Reset to the standard targets")}><RotateCcw size={14} /> {t("Reset")}</button>
+                <button type="button" className="ghost-btn" onClick={() => removeOverride(name)} title={t("Remove this business unit SLA")}><Trash2 size={14} /> {t("Remove")}</button>
               </div>
               <TargetsTable targets={draft.customerSla[name]} base={draft.slaTargets} onChange={(next) => setDraft({ ...draft, customerSla: { ...draft.customerSla, [name]: next } })} />
             </div>
-          )) : <p className="muted">No business unit SLAs. Every business unit is measured against the standard targets.</p>}
+          )) : <p className="muted">{t("No business unit SLAs. Every business unit is measured against the standard targets.")}</p>}
         </div>
       </section>
 
       <section className="panel">
-        <header className="panel-head"><h2>Report header & calendar</h2></header>
+        <header className="panel-head"><h2>{t("Report header & calendar")}</h2></header>
         <div className="panel-body form-stack">
-          <label className="field"><span>Organisation name (shown on every report)</span>
+          <label className="field"><span>{t("Organisation name (shown on every report)")}</span>
             <input value={draft.orgName} onChange={(event) => setDraft({ ...draft, orgName: event.target.value })} maxLength={120} />
           </label>
-          <div className="field"><span>Weekend days</span>
+          <div className="field"><span>{t("Weekend days")}</span>
             <div className="report-weekdays">
-              {WEEKDAY_NAMES.map((name, day) => (
-                <label key={name} className={draft.weekendDays.includes(day) ? 'report-chip on' : 'report-chip'}>
-                  <input type="checkbox" checked={draft.weekendDays.includes(day)} onChange={() => toggleWeekend(day)} />{name.slice(0, 3)}
+              {weekdayNames(getLocale()).map((name, day) => (
+                <label key={day} className={draft.weekendDays.includes(day) ? 'report-chip on' : 'report-chip'}>
+                  <input type="checkbox" checked={draft.weekendDays.includes(day)} onChange={() => toggleWeekend(day)} />{name}
                 </label>
               ))}
             </div>
-            <small className="muted">Saudi Arabia and most GCC countries use Friday + Saturday.</small>
+            <small className="muted">{t("Saudi Arabia and most GCC countries use Friday + Saturday.")}</small>
           </div>
         </div>
       </section>
 
       <div className="sla-savebar">
-        <button type="button" className="primary-btn" onClick={() => void save()} disabled={busy || !dirty}><Save size={14} /> Save SLA policies</button>
-        {dirty ? <button type="button" className="ghost-btn" onClick={() => setDraft(settings)}>Discard changes</button> : null}
-        {message ? <span className="report-import-ok">{message}</span> : dirty ? <span className="muted">Unsaved changes</span> : null}
+        <button type="button" className="primary-btn" onClick={() => void save()} disabled={busy || !dirty}><Save size={14} /> {t("Save SLA policies")}</button>
+        {dirty ? <button type="button" className="ghost-btn" onClick={() => setDraft(settings)}>{t("Discard changes")}</button> : null}
+        {message ? <span className="report-import-ok">{t(message)}</span> : dirty ? <span className="muted">{t("Unsaved changes")}</span> : null}
       </div>
 
       <KpiRules app={app} busy={busy} mutate={mutate} />
@@ -231,7 +232,7 @@ interface KpiRuleDraft {
 function KpiRules({ app, busy, mutate }: { app: AppSnapshot; busy: boolean; mutate: Mutate }) {
   const initial = () => Object.fromEntries(app.kpis.map((kpi) => [kpi.id, { direction: kpi.direction ?? '', tolerance: kpi.tolerance ?? 5 }])) as Record<number, KpiRuleDraft>;
   const [rules, setRules] = useState<Record<number, KpiRuleDraft>>(initial);
-  const [message, setMessage] = useState<string | null>(null);
+  const [updatedCount, setUpdatedCount] = useState<number | null>(null);
   const kpiKey = JSON.stringify(app.kpis);
   useEffect(() => setRules(initial()), [kpiKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -252,17 +253,17 @@ function KpiRules({ app, busy, mutate }: { app: AppSnapshot; busy: boolean; muta
       const rule = rules[kpi.id];
       await mutate(`kpi-rule-${kpi.id}`, () => api.updateRecord('kpi', kpi.id, { ...kpi, direction: rule.direction, tolerance: rule.tolerance }));
     }
-    setMessage(`Updated ${changed.length} KPI rule${changed.length === 1 ? '' : 's'}.`);
-    window.setTimeout(() => setMessage(null), 3000);
+    setUpdatedCount(changed.length);
+    window.setTimeout(() => setUpdatedCount(null), 3000);
   }
 
   return (
     <section className="panel">
-      <header className="panel-head"><h2>KPI health rules</h2><div className="panel-meta"><span className="muted">calculate KPI health from actual vs target</span></div></header>
+      <header className="panel-head"><h2>{t("KPI health rules")}</h2><div className="panel-meta"><span className="muted">{t("calculate KPI health from actual vs target")}</span></div></header>
       <div className="panel-body form-stack">
         {app.kpis.length ? (
           <table className="grid-table kpi-rules">
-            <thead><tr><th>Code</th><th>KPI</th><th>Actual</th><th>Target</th><th>Rule</th><th>Amber band</th><th>Health</th></tr></thead>
+            <thead><tr><th>{t("Code")}</th><th>{t("KPI")}</th><th>{t("Actual")}</th><th>{t("Target")}</th><th>{t("Rule")}</th><th>{t("Amber band")}</th><th>{t("Health")}</th></tr></thead>
             <tbody>
               {app.kpis.map((kpi) => {
                 const rule = rules[kpi.id] ?? { direction: '', tolerance: 5 };
@@ -275,34 +276,31 @@ function KpiRules({ app, busy, mutate }: { app: AppSnapshot; busy: boolean; muta
                     <td className="muted">{kpi.target}</td>
                     <td>
                       <select value={rule.direction} onChange={(event) => setRules({ ...rules, [kpi.id]: { ...rule, direction: event.target.value as KpiDirection } })}>
-                        <option value="">Set by hand</option>
-                        <option value="higher">Higher is better</option>
-                        <option value="lower">Lower is better</option>
+                        <option value="">{t("Set by hand")}</option>
+                        <option value="higher">{t("Higher is better")}</option>
+                        <option value="lower">{t("Lower is better")}</option>
                       </select>
                     </td>
                     <td>
                       <span className="report-inline">
                         <input type="number" min={0} max={100} step={1} className="kpi-tolerance" value={rule.tolerance} onChange={(event) => setRules({ ...rules, [kpi.id]: { ...rule, tolerance: Math.max(0, Math.min(100, Number(event.target.value) || 0)) } })} disabled={!rule.direction} />
-                        <small className="muted">% of target</small>
+                        <small className="muted">{t("% of target")}</small>
                       </span>
                     </td>
                     <td>
-                      <span className={`sla-band ${result.health}`}>{result.health.charAt(0).toUpperCase() + result.health.slice(1)}</span>
-                      <small className="muted"> {result.automatic ? 'auto' : result.note ?? 'manual'}</small>
+                      <span className={`sla-band ${result.health}`}>{t(result.health)}</span>
+                      <small className="muted"> {result.automatic ? t("auto") : t(result.note ?? 'manual')}</small>
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        ) : <p className="muted">No KPIs yet. Add them in the Service module.</p>}
-        <small className="muted">
-          Higher is better: green at or above target, amber within the band below it, red beyond. Lower is better works the other way.
-          Actual and target must use the same unit (both %, both durations like <code>3h 40m</code>, or both plain numbers).
-        </small>
+        ) : <p className="muted">{t("No KPIs yet. Add them in the Service module.")}</p>}
+        <small className="muted"> <Trans i18nKey="Higher is better: green at or above target, amber within the band below it, red beyond. Lower is better works the other way. Actual and target must use the same unit (both %, both durations like <duration/>, or both plain numbers)." components={{ duration: <code>3h 40m</code> }} /></small>
         <div className="report-inline">
-          <button type="button" className="primary-btn" onClick={() => void save()} disabled={busy || !changed.length}><Save size={14} /> Save KPI rules</button>
-          {message ? <span className="report-import-ok">{message}</span> : changed.length ? <span className="muted">{changed.length} unsaved</span> : null}
+          <button type="button" className="primary-btn" onClick={() => void save()} disabled={busy || !changed.length}><Save size={14} /> {t("Save KPI rules")}</button>
+          {updatedCount !== null ? <span className="report-import-ok">{t('updatedKpiRuleCount', { count: updatedCount })}</span> : changed.length ? <span className="muted">{t("{{count}} unsaved", { count: changed.length })}</span> : null}
         </div>
       </div>
     </section>

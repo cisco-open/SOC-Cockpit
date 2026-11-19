@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Cisco Systems, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { LanguageSwitcher } from './LanguageSwitcher';
+import { t } from './i18n';
 import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { LogIn, ShieldCheck } from 'lucide-react';
@@ -25,9 +27,10 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle?: st
           <img src={ciscoLogo} alt="Cisco" className="brand-logo" />
           <span className="brand-name">SOC COCKPIT</span>
         </header>
+        <div className="auth-language"><LanguageSwitcher /></div>
         <div className="auth-card-body">
-          <h1>{title}</h1>
-          {subtitle ? <p className="muted">{subtitle}</p> : null}
+          <h1>{t(title)}</h1>
+          {subtitle ? <p className="muted">{t(subtitle)}</p> : null}
           {children}
         </div>
       </div>
@@ -57,18 +60,18 @@ function LoginScreen({ ldapEnabled, onSignedIn }: { ldapEnabled: boolean; onSign
   }
 
   return (
-    <AuthShell title="Sign in" subtitle={ldapEnabled ? 'Use your SOC Cockpit account or your company (Active Directory) account.' : undefined}>
+    <AuthShell title={t("Sign in")} subtitle={t(ldapEnabled ? 'Use your SOC Cockpit account or your company (Active Directory) account.' : undefined)}>
       <form className="form-stack" onSubmit={(event) => void submit(event)}>
         <label className="field">
-          <span>Username</span>
+          <span>{t("Username")}</span>
           <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoFocus required />
         </label>
         <label className="field">
-          <span>Password</span>
+          <span>{t("Password")}</span>
           <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
         </label>
-        {error ? <div className="error-banner">{error}</div> : null}
-        <button className="primary-btn" type="submit" disabled={busy}><LogIn size={14} /> {busy ? 'Signing in…' : 'Sign in'}</button>
+        {error ? <div className="error-banner">{t(error)}</div> : null}
+        <button className="primary-btn" type="submit" disabled={busy}><LogIn size={14} /> {busy ? t("Signing in…") : t("Sign in")}</button>
       </form>
     </AuthShell>
   );
@@ -82,7 +85,7 @@ function SetupScreen({ onSignedIn }: { onSignedIn: (user: AuthUser) => void }) {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (form.password !== form.confirm) {
-      setError('The two passwords do not match.');
+      setError("The two passwords do not match.");
       return;
     }
     setBusy(true);
@@ -98,30 +101,30 @@ function SetupScreen({ onSignedIn }: { onSignedIn: (user: AuthUser) => void }) {
   }
 
   return (
-    <AuthShell title="First-time setup" subtitle="Create the first administrator account. The setup code is printed in the server console when the app starts.">
+    <AuthShell title={t("First-time setup")} subtitle={t("Create the first administrator account. The setup code is printed in the server console when the app starts.")}>
       <form className="form-stack" onSubmit={(event) => void submit(event)}>
         <label className="field">
-          <span>Setup code</span>
+          <span>{t("Setup code")}</span>
           <input value={form.setupCode} onChange={(event) => setForm({ ...form, setupCode: event.target.value })} autoComplete="off" required />
         </label>
         <label className="field">
-          <span>Admin username</span>
+          <span>{t("Admin username")}</span>
           <input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} autoComplete="username" required />
         </label>
         <label className="field">
-          <span>Email (optional)</span>
+          <span>{t("Email (optional)")}</span>
           <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} autoComplete="email" />
         </label>
         <label className="field">
-          <span>Password (at least 12 characters)</span>
+          <span>{t("Password (at least 12 characters)")}</span>
           <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} autoComplete="new-password" minLength={12} required />
         </label>
         <label className="field">
-          <span>Confirm password</span>
+          <span>{t("Confirm password")}</span>
           <input type="password" value={form.confirm} onChange={(event) => setForm({ ...form, confirm: event.target.value })} autoComplete="new-password" minLength={12} required />
         </label>
-        {error ? <div className="error-banner">{error}</div> : null}
-        <button className="primary-btn" type="submit" disabled={busy}><ShieldCheck size={14} /> {busy ? 'Creating…' : 'Create admin account'}</button>
+        {error ? <div className="error-banner">{t(error)}</div> : null}
+        <button className="primary-btn" type="submit" disabled={busy}><ShieldCheck size={14} /> {busy ? t("Creating…") : t("Create admin account")}</button>
       </form>
     </AuthShell>
   );
@@ -142,10 +145,10 @@ export function AuthGate() {
   }, []);
 
   if (loadError) {
-    return <AuthShell title="Unavailable"><div className="error-banner">{loadError}</div></AuthShell>;
+    return <AuthShell title={t("Unavailable")}><div className="error-banner">{t(loadError)}</div></AuthShell>;
   }
   if (!status) {
-    return <AuthShell title="Loading…" />;
+    return <AuthShell title={t("Loading…")} />;
   }
   if (status.setupRequired) {
     return <SetupScreen onSignedIn={(user) => setStatus({ ...status, setupRequired: false, user })} />;

@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { t } from './i18n';
 import { createPortal } from 'react-dom';
 import { TriangleAlert, Trash2 } from 'lucide-react';
 
@@ -79,8 +80,8 @@ function ConfirmDialog({ options, onClose }: { options: ConfirmOptions; onClose:
         <div className="ac-modal-body">
           <div id={messageId} className="confirm-message">{options.message}</div>
           <footer className="ac-modal-foot">
-            <button ref={cancelRef} type="button" className="ac-btn" onClick={() => onClose(false)}>{options.cancelLabel ?? 'Cancel'}</button>
-            <button ref={confirmRef} type="button" className="ac-btn danger-solid" onClick={() => onClose(true)}><Trash2 size={16} aria-hidden="true" /> {options.confirmLabel ?? 'Delete'}</button>
+            <button ref={cancelRef} type="button" className="ac-btn" onClick={() => onClose(false)}>{options.cancelLabel ?? t('Cancel')}</button>
+            <button ref={confirmRef} type="button" className="ac-btn danger-solid" onClick={() => onClose(true)}><Trash2 size={16} aria-hidden="true" /> {options.confirmLabel ?? t("Delete")}</button>
           </footer>
         </div>
       </div>

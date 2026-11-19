@@ -2,13 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { languageReady } from './i18n';
 import ReactDOM from 'react-dom/client';
 import { AuthGate } from './Auth';
 import './styles.css';
 import './styles.restored.css';
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <AuthGate />
-  </React.StrictMode>,
-);
+function LocalizedApp() {
+  // Subscribe at the root so switching languages updates every module without
+  // remounting it or discarding an in-progress form.
+  useTranslation();
+  return <AuthGate />;
+}
+
+void languageReady.then(() => {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <LocalizedApp />
+    </React.StrictMode>,
+  );
+});
